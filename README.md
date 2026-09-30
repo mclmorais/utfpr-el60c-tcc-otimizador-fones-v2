@@ -81,7 +81,7 @@ O sistema implementa:
 
 ### Persistência
 
-- **Armazenamento em Flash**: Configurações de equalização são salvas no setor 10 da flash
+- **Armazenamento em Flash**: Configurações de equalização são salvas no setor 12 da flash, o primeiro setor do banco 2 (16 KB, endereço `0x08100000`). A flash fica em modo dual-bank. Assim, apagar esse setor não trava o código que roda do banco 1, e o áudio USB continua durante a gravação
 - **Restauração Automática**: Configurações são restauradas automaticamente na inicialização
 - **Marca de Formato**: A primeira palavra do setor guarda a marca `EQ31`. Os ajustes de 8 bandas salvos por versões antigas do firmware não têm essa marca e são descartados: todas as bandas começam em 0 dB
 
@@ -127,7 +127,19 @@ O firmware fica em `build/Debug/horoscope.elf`.
 STM32_Programmer_CLI -c port=SWD -w build/Debug/horoscope.elf -v -rst
 ```
 
-A gravação apaga só os setores do programa. As configurações do equalizador, salvas no setor 10, são mantidas.
+A gravação apaga só os setores do programa. As configurações do equalizador, salvas no setor 12, são mantidas.
+
+#### Configurar a flash em dual-bank (uma vez por placa)
+
+A placa vem de fábrica com a flash em modo single-bank (`nDBANK=1`). O firmware precisa do modo dual-bank (`nDBANK=0`): em single-bank, o botão "Salvar" não grava nada. A troca de modo muda o mapa da flash e embaralha o conteúdo gravado. Por isso, apague o chip e grave o firmware de novo:
+
+```bash
+STM32_Programmer_CLI -c port=SWD mode=UR reset=HWrst -ob nDBANK=0
+STM32_Programmer_CLI -c port=SWD mode=UR reset=HWrst -e all
+STM32_Programmer_CLI -c port=SWD -w build/Debug/horoscope.elf -v -rst
+```
+
+Confira com `STM32_Programmer_CLI -c port=SWD -ob displ`. A linha `nDBANK` deve mostrar `0x0`. Os ajustes do equalizador salvos antes da troca são perdidos: todas as bandas começam em 0 dB.
 
 ### Capturar a Tela do LCD
 
