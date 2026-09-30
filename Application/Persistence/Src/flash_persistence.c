@@ -1,23 +1,22 @@
 #include "flash_persistence.h"
 #include "audio_user_dsp.h"
-#include "usbd_core.h"
 #include <stdbool.h>
 
 #define FLASH_LAYOUT_TAG 0x31335145
 
-extern USBD_HandleTypeDef USBD_Device;
-
 void FlashPersistence_Write()
 {
+  // In single-bank mode (nDBANK=1) the sector number of FLASH_USER_SECTOR is reserved, so the erase would hit an unknown region.
+  if(FLASH->OPTCR & FLASH_OPTCR_nDBANK)
+    return;
+
   FLASH_EraseInitTypeDef eraseInitStruct;
   eraseInitStruct.TypeErase = FLASH_TYPEERASE_SECTORS;
-  eraseInitStruct.Sector = FLASH_SECTOR_10;
+  eraseInitStruct.Sector = FLASH_USER_SECTOR;
   eraseInitStruct.NbSectors = 1;
   eraseInitStruct.VoltageRange = FLASH_VOLTAGE_RANGE_3;
   uint32_t sectorError = 0;
-    
-  USBD_LL_Suspend(&USBD_Device);
-  USBD_Stop(&USBD_Device);
+
   HAL_FLASH_Unlock();
   HAL_FLASHEx_Erase(&eraseInitStruct, &sectorError);
   HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR, FLASH_LAYOUT_TAG);
@@ -26,8 +25,6 @@ void FlashPersistence_Write()
     HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + (i + 1) * 4, (uint32_t)(int32_t)eqGains[i]);
   }
   HAL_FLASH_Lock();
-  USBD_LL_Resume(&USBD_Device);
-  USBD_Start(&USBD_Device);
 }
 
 void FlashPersistence_Restore()
