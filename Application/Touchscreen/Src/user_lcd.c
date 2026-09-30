@@ -364,15 +364,12 @@ void LCD_DisplayKnob(uint8_t knobIndex, uint16_t newKnobY)
   double outputMax = 15;
   double outputMin = -15;
   int16_t newGain = outputMax + (knob->knobY - inputMin) * (outputMin - outputMax) / (inputMax - inputMin);
+  if(newGain < outputMin)
+    newGain = outputMin;
+  else if(newGain > outputMax)
+    newGain = outputMax;
   char text[5];
-  if(newGain <= -10)
-    sprintf(text, "%03i", newGain);
-  else if(newGain < 0)
-    sprintf(text, " %02i", newGain);
-  else if (newGain < 10)
-    sprintf(text, "  %01i", newGain);
-  else
-    sprintf(text, " %02i", newGain);
+  sprintf(text, "%3i", newGain);
 
   BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
   BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
