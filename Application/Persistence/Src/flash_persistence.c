@@ -27,10 +27,15 @@ void FlashPersistence_Write()
 void FlashPersistence_Restore()
 {
   for(uint32_t i = 0; i < NUMBER_OF_SLIDER_BUTTONS; i++)
-    sliderKnobs[i].knobY = *(volatile int32_t*)(FLASH_USER_START_ADDR + i*4);
+    sliderKnobs[i].knobY = FlashPersistence_Read(i);
 }
 
 uint16_t FlashPersistence_Read(uint8_t position)
 {
-  return *(volatile int32_t*)(FLASH_USER_START_ADDR + position * 4);
+  uint32_t knobY = *(volatile uint32_t*)(FLASH_USER_START_ADDR + position * 4);
+  SliderKnob* knob = &sliderKnobs[position];
+  // An erased sector reads 0xFFFFFFFF; any Y off the slider falls back to 0 dB.
+  if(knobY < knob->sliderY || knobY > knob->sliderY + knob->sliderHeight)
+    return LCD_TranslateGainToKnobPosition(position, 0);
+  return knobY;
 }
