@@ -17,10 +17,6 @@ uint32_t serialTimer      = 0;
 uint32_t touchscreenTimer = 0;
 uint32_t serialSendTimer  = 0;
 bool shouldPrintSamples   = false;
-float in_z1               = 0;
-float in_z2               = 0;
-float out_z1              = 0;
-float out_z2              = 0;
 
 uint8_t pColLeft[]        = {0x00, 0x00, 0x01, 0x8F}; // 0 -> 399
 uint8_t pColRight[]       = {0x01, 0x90, 0x03, 0x1F}; // 400 -> 799

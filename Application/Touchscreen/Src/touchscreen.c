@@ -68,7 +68,6 @@ static uint32_t Touchscreen_Handle_NewTouch(void);
 /* Private functions ---------------------------------------------------------*/
 extern int16_t frequencies[];
 extern int16_t bandwidths[];
-extern uint32_t divider;
 extern bool shouldPrintSamples;
 extern bool shouldApplyFilter;
 bool areInitialCirclesDrawn = false;
