@@ -9,7 +9,6 @@
 
 void FlashPersistence_Write();
 void FlashPersistence_Restore();
-uint16_t FlashPersistence_Read(uint8_t position);
 
 
 #endif // __FLASH_PERSISTENCE_H

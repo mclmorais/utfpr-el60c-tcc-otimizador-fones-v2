@@ -1,4 +1,6 @@
 #include "user_lcd.h"
+#include "audio_user_dsp.h"
+#include <string.h>
 #define FOREGROUND_LAYER_OFFSET  (800 * 480 * sizeof(uint16_t))  // Adjust this offset based on your needs
 
 // pictures -----------------------------------------------------------
@@ -29,6 +31,7 @@
 
 #define BUTTON_BORDER_SIZE 2
 #define Y_BAR_POSITION -60
+#define EQ_PAGE_COUNT ((EQ_BAND_COUNT + NUMBER_OF_SLIDER_BUTTONS - 1) / NUMBER_OF_SLIDER_BUTTONS)
 
 // private function declarations --------------------------------------
 static void     LCD_LayertInit(uint16_t LayerIndex, uint32_t Address);
@@ -87,20 +90,46 @@ RectangleButton resetButton = {
 };
 
 
+RectangleButton previousPageButton = {
+  .x = 145,
+  .y = 415,
+  .width = 45,
+  .height = 50,
+  .inactiveColor = LCD_COLOR_LIGHTGRAY,
+  .activeColor = LCD_COLOR_LIGHTGREEN,
+  .text = "<",
+  .isPressed = false,
+  .isActive = false
+};
+
+RectangleButton nextPageButton = {
+  .x = 198,
+  .y = 415,
+  .width = 45,
+  .height = 50,
+  .inactiveColor = LCD_COLOR_LIGHTGRAY,
+  .activeColor = LCD_COLOR_LIGHTGREEN,
+  .text = ">",
+  .isPressed = false,
+  .isActive = false
+};
+
+static uint8_t eqPage = 0;
+
 IncrementButton plusButtons[] = {
   { 100, 150, 50, 50, LCD_COLOR_BLACK, LCD_COLOR_WHITE, "+", false, 1},
   // { 150, 100, 30, 30, LCD_COLOR_BLACK, LCD_COLOR_WHITE, "+", false, 1}
 };
 
 SliderKnob sliderKnobs[] = {
-  { 200 + 50,  25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7},
-  { 200 + 110, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7},
-  { 200 + 170, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7},
-  { 200 + 230, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7},
-  { 200 + 290, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7},
-  { 200 + 350, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7},
-  { 200 + 410, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7},
-  { 200 + 470, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7}
+  { 200 + 50,  25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7},
+  { 200 + 110, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7},
+  { 200 + 170, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7},
+  { 200 + 230, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7},
+  { 200 + 290, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7},
+  { 200 + 350, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7},
+  { 200 + 410, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7},
+  { 200 + 470, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7}
 };
 
 // external variable declarations -------------------------------------
@@ -180,23 +209,14 @@ void LCD_UpdateState()
 
   if(circleButtons[0].isActive)
   {
-    // displays background
-    BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
-    BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
-    BSP_LCD_DisplayStringAt(sliderKnobs[0].sliderX, 0, (uint8_t *)" 30  60 150 400 1k 3k 8k 16k", LEFT_MODE);
-    BSP_LCD_FillRect(sliderKnobs[0].sliderX - 2, sliderKnobs[0].sliderY - 2, NUMBER_OF_SLIDER_BUTTONS * sliderKnobs[0].sliderWidth + 4, sliderKnobs[0].sliderHeight + 4);
+    LCD_DisplayEqPage();
 
     // displays option buttons
     LCD_UpdateRectangleButton(&saveButton);
     LCD_UpdateRectangleButton(&resetButton);
     LCD_UpdateRectangleButton(&undoButton);
-
-    // displays sliders and their knobs
-    for(uint8_t i = 0; i < NUMBER_OF_SLIDER_BUTTONS; i++)
-    {
-      LCD_InitSlider(i);
-      LCD_DisplayKnob(i, sliderKnobs[i].knobY);
-    }
+    LCD_UpdateRectangleButton(&previousPageButton);
+    LCD_UpdateRectangleButton(&nextPageButton);
   }
   else
   {
@@ -326,6 +346,60 @@ void LCD_UpdateRectangleButton(RectangleButton* button)
   BSP_LCD_DisplayStringAt(button->x + 5, button->y + button->height / 2 - 6, (uint8_t *)button->text, LEFT_MODE);
 }
 
+int8_t LCD_ColumnToBand(uint8_t column)
+{
+  uint32_t band = eqPage * NUMBER_OF_SLIDER_BUTTONS + column;
+  return band < EQ_BAND_COUNT ? band : -1;
+}
+
+void LCD_DisplayEqPage(void)
+{
+  SliderKnob* first = &sliderKnobs[0];
+  uint16_t frameX = first->sliderX - 2;
+  uint16_t frameWidth = NUMBER_OF_SLIDER_BUTTONS * first->sliderWidth + 4;
+  uint16_t frameY = first->sliderY - 2;
+
+  BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+  BSP_LCD_FillRect(frameX, 0, frameWidth, frameY);
+  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+  BSP_LCD_FillRect(frameX, frameY, frameWidth, first->sliderHeight + 4);
+
+  for(uint8_t column = 0; column < NUMBER_OF_SLIDER_BUTTONS; column++)
+  {
+    SliderKnob* knob = &sliderKnobs[column];
+    int8_t band = LCD_ColumnToBand(column);
+
+    if(band < 0)
+    {
+      BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+      BSP_LCD_FillRect(knob->sliderX, knob->sliderY, knob->sliderWidth, knob->sliderHeight);
+      BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
+      BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+      BSP_LCD_DisplayStringAt(knob->sliderX, 450, (uint8_t *)"   ", LEFT_MODE);
+      continue;
+    }
+
+    const char* label = eqBands[band].label;
+    uint16_t labelWidth = strlen(label) * BSP_LCD_GetFont()->Width;
+    BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
+    BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+    BSP_LCD_DisplayStringAt(knob->sliderX + (knob->sliderWidth - labelWidth) / 2, 0, (uint8_t *)label, LEFT_MODE);
+
+    LCD_InitSlider(column);
+    LCD_DisplayKnob(column, LCD_TranslateGainToKnobPosition(column, eqGains[band]));
+  }
+
+  // Font24 labels are 24 px tall and their background overwrites the frame's top edge at y = 23.
+  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+  BSP_LCD_FillRect(frameX, frameY, frameWidth, 2);
+}
+
+void LCD_ChangeEqPage(int8_t step)
+{
+  eqPage = (eqPage + EQ_PAGE_COUNT + step) % EQ_PAGE_COUNT;
+  LCD_DisplayEqPage();
+}
+
 void LCD_InitSlider(uint8_t knobIndex)
 {
   SliderKnob* knob = &sliderKnobs[knobIndex];
@@ -359,33 +433,31 @@ void LCD_DisplayKnob(uint8_t knobIndex, uint16_t newKnobY)
 
   knob->knobY = newKnobY;
 
-  double inputMin = knob->sliderY;
-  double inputMax = knob->sliderY + knob->sliderHeight;
-  double outputMax = 15;
-  double outputMin = -15;
-  int16_t newGain = outputMax + (knob->knobY - inputMin) * (outputMin - outputMax) / (inputMax - inputMin);
-  if(newGain < outputMin)
-    newGain = outputMin;
-  else if(newGain > outputMax)
-    newGain = outputMax;
   char text[5];
-  sprintf(text, "%3i", newGain);
+  sprintf(text, "%3i", LCD_TranslateKnobPositionToGain(knobIndex, newKnobY));
 
   BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
   BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
   BSP_LCD_DisplayStringAt(knob->sliderX, 450, (uint8_t *)text, LEFT_MODE);
 }
 
-int16_t LCD_TranslateGainToKnobPosition(uint8_t knobIndex, uint16_t gain)
+uint16_t LCD_TranslateGainToKnobPosition(uint8_t knobIndex, int8_t gain)
 {
   SliderKnob* knob = &sliderKnobs[knobIndex];
-  double outputMin = knob->sliderY;
-  double outputMax = knob->sliderY + knob->sliderHeight;
-  double inputMin = -15;
-  double inputMax = 15;
-  int16_t knobPosition = outputMax + (gain - inputMin) * (outputMin - outputMax) / (inputMax - inputMin);
-  return knobPosition;
-  // knob->knobY = knobPosition;
+  int32_t bottom = knob->sliderY + knob->sliderHeight;
+  return bottom - (gain - EQ_GAIN_MIN_DB) * knob->sliderHeight / (EQ_GAIN_MAX_DB - EQ_GAIN_MIN_DB);
+}
+
+int8_t LCD_TranslateKnobPositionToGain(uint8_t knobIndex, uint16_t knobY)
+{
+  SliderKnob* knob = &sliderKnobs[knobIndex];
+  int32_t bottom = knob->sliderY + knob->sliderHeight;
+  int32_t gain = EQ_GAIN_MIN_DB + ((bottom - knobY) * (EQ_GAIN_MAX_DB - EQ_GAIN_MIN_DB) + knob->sliderHeight / 2) / knob->sliderHeight;
+  if(gain < EQ_GAIN_MIN_DB)
+    return EQ_GAIN_MIN_DB;
+  if(gain > EQ_GAIN_MAX_DB)
+    return EQ_GAIN_MAX_DB;
+  return gain;
 }
 
 void LCD_UpdateButton(uint8_t buttonIndex, bool isPressed, bool shouldToggleOtherButtons)

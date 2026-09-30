@@ -5,6 +5,7 @@
 #include "usart.h"
 #include "flash_persistence.h"
 #include "user_lcd.h"
+#include "audio_user_dsp.h"
 
 // private variables -----------------------------------------------------------
 USBD_HandleTypeDef USBD_Device;
@@ -17,17 +18,11 @@ uint32_t serialTimer      = 0;
 uint32_t touchscreenTimer = 0;
 uint32_t serialSendTimer  = 0;
 bool shouldPrintSamples   = false;
-float in_z1               = 0;
-float in_z2               = 0;
-float out_z1              = 0;
-float out_z2              = 0;
 
 uint8_t pColLeft[]        = {0x00, 0x00, 0x01, 0x8F}; // 0 -> 399
 uint8_t pColRight[]       = {0x01, 0x90, 0x03, 0x1F}; // 400 -> 799
 uint8_t pPage[]           = {0x00, 0x00, 0x01, 0xDF}; // 0 -> 479
 uint8_t pSyncLeft[]       = {0x02, 0x15};             // Scan @ 533
-extern int16_t frequencies[];
-extern int16_t bandwidths[];
 
 #if USE_AUDIO_TIMER_VOLUME_CTRL
 TIM_HandleTypeDef TimHandle;
@@ -73,6 +68,8 @@ int main(void)
 	SystemClock_Config();
 
 	BSP_SDRAM_Init();
+	FlashPersistence_Restore();
+	AudioUserDsp_Init();
 	USB_Init();
 
 	HAL_Delay(1000);
@@ -83,20 +80,6 @@ int main(void)
 	
 	uint8_t initString[] = "\r\n--- Horoscope Initialization Complete! ---\r\n";
 	HAL_UART_Transmit(&UART1_Handle, initString, sizeof(initString), 10);
-
-	uint8_t readingString[] = "\r\nReading data from storage...\r\n";
-	HAL_UART_Transmit(&UART1_Handle, readingString, sizeof(readingString), 10);
-
-	FlashPersistence_Restore();
-	for(int i = 0; i < NUMBER_OF_SLIDER_BUTTONS; i++)
-	{
-		int16_t newGain = AudioUserDsp_CalculateGain(i, &sliderKnobs[i]);
-		AudioUserDsp_BiquadFilterConfig(&biquadFilters[i], newGain, frequencies[i], bandwidths[i]);
-	}
-
-
-	uint8_t readFinishedString[] = "\r\nRead finished!\r\n";
-	HAL_UART_Transmit(&UART1_Handle, readFinishedString, sizeof(readFinishedString), 10);
 
 
   #if USE_AUDIO_TIMER_VOLUME_CTRL

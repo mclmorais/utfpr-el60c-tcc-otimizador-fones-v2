@@ -20,6 +20,7 @@
 #include "main.h"
 #include "user_lcd.h"
 #include "flash_persistence.h"
+#include "audio_user_dsp.h"
 /** @addtogroup STM32F7xx_HAL_Examples
  * @{
  */
@@ -66,12 +67,10 @@ void                    Touchscreen_DrawBackground_Circles(uint8_t state);
 static uint32_t Touchscreen_Handle_NewTouch(void);
 #endif // TS_MULTI_TOUCH_SUPPORTED == 1
 /* Private functions ---------------------------------------------------------*/
-extern int16_t frequencies[];
-extern int16_t bandwidths[];
-extern uint32_t divider;
 extern bool shouldPrintSamples;
 extern bool shouldApplyFilter;
 bool areInitialCirclesDrawn = false;
+static bool isPageTurnLatched = false;
 
 #define CIRCLE_BUTTON_DEBOUNCE_TIMER 100
 uint32_t yOffset = 0;
@@ -95,6 +94,7 @@ void Touchscreen_ButtonHandler(void)
 
   if(!TS_State.touchDetected)
   {
+    isPageTurnLatched = false;
     for(uint8_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++) 
     {
       if(++circleButtons[i].debounceTimer > CIRCLE_BUTTON_DEBOUNCE_TIMER)
@@ -125,6 +125,26 @@ void Touchscreen_ButtonHandler(void)
 
   if(circleButtons[0].isActive)
   {  
+    if(touchYPosition > previousPageButton.y && touchYPosition < previousPageButton.y + previousPageButton.height)
+    {
+      int8_t step = 0;
+      if(touchXPosition > previousPageButton.x && touchXPosition < previousPageButton.x + previousPageButton.width)
+        step = -1;
+      else if(touchXPosition > nextPageButton.x && touchXPosition < nextPageButton.x + nextPageButton.width)
+        step = 1;
+
+      if(step != 0)
+      {
+        if(!isPageTurnLatched)
+        {
+          isPageTurnLatched = true;
+          LCD_ChangeEqPage(step);
+        }
+
+        return;
+      }
+    }
+
     if(touchYPosition > saveButton.y && touchYPosition < saveButton.y + saveButton.height)
     {
       if(touchXPosition > saveButton.x && touchXPosition < saveButton.x + saveButton.width)
@@ -161,8 +181,8 @@ void Touchscreen_ButtonHandler(void)
           LCD_UpdateRectangleButton(&saveButton);
           LCD_UpdateRectangleButton(&undoButton);
           LCD_UpdateRectangleButton(&resetButton);
-          for(uint8_t i = 0; i < NUMBER_OF_SLIDER_BUTTONS; i++)
-            LCD_DisplayKnob(i, FlashPersistence_Read(i));
+          FlashPersistence_Restore();
+          LCD_DisplayEqPage();
         }
 
         return;
@@ -183,11 +203,9 @@ void Touchscreen_ButtonHandler(void)
           LCD_UpdateRectangleButton(&saveButton);
           LCD_UpdateRectangleButton(&undoButton);
           LCD_UpdateRectangleButton(&resetButton);
-          for(uint8_t i = 0; i < NUMBER_OF_SLIDER_BUTTONS; i++)
-          {
-            AudioUserDsp_BiquadFilterConfig(&biquadFilters[i], 0, frequencies[i], bandwidths[i]);
-            LCD_DisplayKnob(i, LCD_TranslateGainToKnobPosition(i, 0));
-          }
+          for(uint8_t i = 0; i < EQ_BAND_COUNT; i++)
+            eqGains[i] = 0;
+          LCD_DisplayEqPage();
         }
 
         return;
@@ -196,14 +214,19 @@ void Touchscreen_ButtonHandler(void)
 
     for(uint8_t i = 0; i < NUMBER_OF_SLIDER_BUTTONS; i++)
     {
+      int8_t band = LCD_ColumnToBand(i);
+      if(band < 0)
+        continue;
+
       if((touchYPosition > sliderKnobs[i].sliderY + 10) && (touchYPosition < sliderKnobs[i].sliderY + sliderKnobs[i].sliderHeight - 10))
       {
         if((touchXPosition > sliderKnobs[i].sliderX) && (touchXPosition < sliderKnobs[i].sliderX + sliderKnobs[i].sliderWidth))
         {
           if(++sliderKnobs[i].debounceCount >= sliderKnobs[i].debouceLimit)
           {
-            LCD_DisplayKnob(i, touchYPosition);
-            sliderKnobs[i].isPressed = true;
+            int8_t gain = LCD_TranslateKnobPositionToGain(i, touchYPosition);
+            eqGains[band] = gain;
+            LCD_DisplayKnob(i, LCD_TranslateGainToKnobPosition(i, gain));
             sliderKnobs[i].debounceCount = 0;
 
             resetButton.isPressed = false;

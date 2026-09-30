@@ -2,32 +2,20 @@
 #define __AUDIO_USER_DSP_H__
 
 #include <stdint.h>
-#include "stdbool.h"
-#include "user_lcd.h"
 
-#define NUMBER_OF_BANDS 8
+#define EQ_BAND_COUNT 31
+#define EQ_GAIN_MIN_DB (-15)
+#define EQ_GAIN_MAX_DB 15
 
+typedef struct EqBand {
+  float frequency;
+  const char* label;
+} EqBand;
 
-typedef struct BiquadFilter {
-  float b0, b1, b2, a1, a2;
-  float in_z1, in_z2, out_z1, out_z2;
-  int32_t gain, frequency, bandwidth;
-  bool isInitialized;
-} BiquadFilter;
+extern const EqBand eqBands[EQ_BAND_COUNT];
+extern volatile int8_t eqGains[EQ_BAND_COUNT];
 
-void AudioUserDsp_ApplyFilterToSamples(
-    uint8_t* dataPointer, 
-    uint32_t dataLength,
-    int16_t (*leftChannelFilter)(int16_t, uint8_t), 
-    int16_t (*rightChannelFilter)(int16_t, uint8_t),
-    uint8_t filterIndex
-    );
-int16_t AudioUserDsp_ChangeAmplitude(int16_t sample, uint8_t filterIndex);
-int16_t AudioUserDsp_LowPassFilter(int16_t sample, uint8_t filterIndex);
-int16_t AudioUserDsp_BiquadFilter(int16_t sample, uint8_t filterIndex);
-void AudioUserDsp_BiquadFilterConfig(BiquadFilter* filter, int16_t gain, int16_t frequency, int16_t bandwidth);
-int16_t AudioUserDsp_CalculateGain(uint16_t sliderY, SliderKnob* sliderKnob);
-
-extern BiquadFilter biquadFilters[NUMBER_OF_BANDS];
+void AudioUserDsp_Init(void);
+void AudioUserDsp_Process(uint8_t* frames, uint32_t length);
 
 #endif // __AUDIO_USER_DSP_H__

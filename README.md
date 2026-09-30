@@ -12,7 +12,7 @@ O projeto visa reduzir gargalos no processo de entrega de áudio, desde o envio 
 - **Processamento Digital de Sinais**: Aplica filtros biquad para equalização personalizada
 - **Interface Touchscreen**: Permite ajuste visual e interativo dos parâmetros de equalização
 - **Persistência de Configurações**: Salva as configurações de equalização na memória flash
-- **8 Bandas de Equalização**: Sistema de equalização com 8 bandas ajustáveis
+- **31 Bandas de Equalização**: Equalizador gráfico de 1/3 de oitava, com as frequências centrais da ISO 266, de 20 Hz a 20 kHz
 - **Alta Qualidade**: Conversão e amplificação de alta qualidade para melhor fidelidade sonora
 
 ## Hardware
@@ -69,20 +69,21 @@ O projeto foi desenvolvido para a placa de desenvolvimento **STM32F769I-Discover
 O sistema implementa:
 
 - **Filtros Biquad**: Filtros IIR (Infinite Impulse Response) de segunda ordem para equalização
-- **8 Bandas de Frequência**: Sistema de equalização com 8 bandas ajustáveis
+- **31 Bandas de Frequência**: Equalizador gráfico de 1/3 de oitava, de 20 Hz a 20 kHz
 - **Processamento em Tempo Real**: Processamento de amostras de áudio em tempo real via USB
 - **Formato PCM**: Suporte a áudio PCM estéreo (2 canais)
 
 ### Interface de Usuário
 
 - **Touchscreen**: Interface gráfica para ajuste de equalização
-- **Sliders Visuais**: Controles deslizantes para cada banda de frequência
+- **Sliders Visuais**: Controles deslizantes para cada banda de frequência, 8 por página
 - **Feedback Visual**: Exibição das configurações atuais no display LCD
 
 ### Persistência
 
 - **Armazenamento em Flash**: Configurações de equalização são salvas no setor 10 da flash
 - **Restauração Automática**: Configurações são restauradas automaticamente na inicialização
+- **Marca de Formato**: A primeira palavra do setor guarda a marca `EQ31`. Os ajustes de 8 bandas salvos por versões antigas do firmware não têm essa marca e são descartados: todas as bandas começam em 0 dB
 
 ## Como Compilar e Executar
 
@@ -147,8 +148,11 @@ tools/lcd_capture.py lcd.png
    - O dispositivo aparece como um dispositivo de áudio USB
 
 3. **Ajustar a Equalização**:
-   - Use a tela touchscreen para ajustar os sliders de cada banda de frequência
-   - As configurações são salvas automaticamente na flash
+   - Toque no botão "EQ" para abrir a tela do equalizador
+   - A tela mostra 8 bandas por vez, em 4 páginas: 20 Hz a 100 Hz, 125 Hz a 630 Hz, 800 Hz a 4 kHz e 5 kHz a 20 kHz
+   - Use os botões "<" e ">", à direita do botão "EQ", para trocar de página. Da última página, ">" volta para a primeira
+   - Arraste o slider de cada banda para ajustar o ganho, de -15 dB a +15 dB, em passos de 1 dB
+   - Toque em "Salvar" para gravar os ajustes na flash, em "Desfazer" para voltar aos ajustes salvos e em "Redefinir" para voltar todas as bandas a 0 dB
 
 4. **Conectar o Fone de Ouvido**:
    - Conecte o fone de ouvido na saída de áudio da placa
@@ -168,8 +172,8 @@ tools/lcd_capture.py lcd.png
 O sistema utiliza filtros biquad do tipo "peaking equalizer" para cada banda de frequência. Os coeficientes são calculados usando as fórmulas do Audio EQ Cookbook:
 
 - **Ganho**: Ajustável de -15 dB a +15 dB por banda
-- **Frequência Central**: Configurável por banda
-- **Largura de Banda**: Configurável por banda
+- **Frequência Central**: 31 frequências da ISO 266, de 20 Hz a 20 kHz, em passos de 1/3 de oitava
+- **Largura de Banda**: 1/3 de oitava em todas as bandas
 
 ### Arquitetura de Processamento
 
@@ -180,7 +184,7 @@ flowchart LR
     C --> D[I²S Output]
     D --> E[Codec]
     E --> F[Fone de Ouvido]
-    C --> G[Filtros Biquad<br/>8 bandas]
+    C --> G[Filtros Biquad<br/>31 bandas]
     G --> C
     C --> H[Persistência Flash]
     H --> C
