@@ -76,7 +76,6 @@ typedef struct SliderKnob
     uint32_t sliderColor;
     uint16_t knobY;
     uint16_t knobRadius;
-    bool isPressed;
     uint32_t debounceCount;
     uint32_t debouceLimit;
 } SliderKnob;
@@ -87,7 +86,8 @@ void LCD_UpdateWatchdog(uint32_t* watchdogCounter);
 void LCD_UpdateButton(uint8_t buttonIndex, bool isPressed, bool shouldToggleOtherButtons);
 void LCD_DisplayKnob(uint8_t knobIndex, uint16_t newKnobY);
 void BSP_LCD_DrawPicture(const uint8_t* image, uint32_t width, uint32_t height, uint32_t xPosition, uint32_t yPosition);
-int16_t LCD_TranslateGainToKnobPosition(uint8_t knobIndex, uint16_t gain);
+uint16_t LCD_TranslateGainToKnobPosition(uint8_t knobIndex, int8_t gain);
+int8_t LCD_TranslateKnobPositionToGain(uint8_t knobIndex, uint16_t knobY);
 void LCD_UpdateRectangleButton(RectangleButton* button);
 void LCD_UpdateState();
 void LCD_InitSlider(uint8_t knobIndex);

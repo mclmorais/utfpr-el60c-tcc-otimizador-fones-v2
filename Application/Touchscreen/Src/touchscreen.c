@@ -20,6 +20,7 @@
 #include "main.h"
 #include "user_lcd.h"
 #include "flash_persistence.h"
+#include "audio_user_dsp.h"
 /** @addtogroup STM32F7xx_HAL_Examples
  * @{
  */
@@ -66,8 +67,6 @@ void                    Touchscreen_DrawBackground_Circles(uint8_t state);
 static uint32_t Touchscreen_Handle_NewTouch(void);
 #endif // TS_MULTI_TOUCH_SUPPORTED == 1
 /* Private functions ---------------------------------------------------------*/
-extern int16_t frequencies[];
-extern int16_t bandwidths[];
 extern bool shouldPrintSamples;
 extern bool shouldApplyFilter;
 bool areInitialCirclesDrawn = false;
@@ -160,8 +159,9 @@ void Touchscreen_ButtonHandler(void)
           LCD_UpdateRectangleButton(&saveButton);
           LCD_UpdateRectangleButton(&undoButton);
           LCD_UpdateRectangleButton(&resetButton);
+          FlashPersistence_Restore();
           for(uint8_t i = 0; i < NUMBER_OF_SLIDER_BUTTONS; i++)
-            LCD_DisplayKnob(i, FlashPersistence_Read(i));
+            LCD_DisplayKnob(i, LCD_TranslateGainToKnobPosition(i, eqGains[i]));
         }
 
         return;
@@ -184,7 +184,7 @@ void Touchscreen_ButtonHandler(void)
           LCD_UpdateRectangleButton(&resetButton);
           for(uint8_t i = 0; i < NUMBER_OF_SLIDER_BUTTONS; i++)
           {
-            AudioUserDsp_BiquadFilterConfig(&biquadFilters[i], 0, frequencies[i], bandwidths[i]);
+            eqGains[i] = 0;
             LCD_DisplayKnob(i, LCD_TranslateGainToKnobPosition(i, 0));
           }
         }
@@ -201,8 +201,9 @@ void Touchscreen_ButtonHandler(void)
         {
           if(++sliderKnobs[i].debounceCount >= sliderKnobs[i].debouceLimit)
           {
-            LCD_DisplayKnob(i, touchYPosition);
-            sliderKnobs[i].isPressed = true;
+            int8_t gain = LCD_TranslateKnobPositionToGain(i, touchYPosition);
+            eqGains[i] = gain;
+            LCD_DisplayKnob(i, LCD_TranslateGainToKnobPosition(i, gain));
             sliderKnobs[i].debounceCount = 0;
 
             resetButton.isPressed = false;

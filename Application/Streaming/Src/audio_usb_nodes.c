@@ -20,12 +20,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "usb_audio.h"
 #include "audio_usb_nodes.h"
-#include "user_lcd.h"
-#include "usart.h"
 
-
-/* External variables --------------------------------------------------------*/
-extern CircleButtonTypeDef circleButtons[];
 
 /* Private macros ------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -87,12 +82,6 @@ static int8_t  USB_AudioStreamingInputOutputSetCurFrequency(uint32_t freq,uint8_
 static uint32_t  USB_AudioStreamingGetNearestFrequency(uint32_t freq,  uint32_t* freq_table, int freq_count);
 #endif /*USE_AUDIO_USB_MULTI_FREQUENCIES*/
 /* Private variables --------------------------------------------------------*/
-
-uint32_t sentSamplesCount = 0;
-uint32_t debounceTimer = 0;
-bool isDebouncing = false;
-int16_t frequencies[] = {30, 60, 150, 400, 1000, 3000, 8000, 16000};
-int16_t bandwidths[] =  {1,   1,   2,   2,    2,    3,    3,     3};
 
 #ifdef USE_AUDIO_USB_PLAY_MULTI_FREQUENCIES
 /* declare table of all supported frequencies, to select frequency when set frequency control is received */
@@ -394,17 +383,6 @@ static int8_t USB_AudioStreamingInputDataReceived(uint16_t data_len, uint32_t no
 
   uint8_t* newDataPointer = buffer->data + buffer->wr_ptr;
 
-  for(int i = 0; i < NUMBER_OF_SLIDER_BUTTONS; i++)
-  {
-    if(sliderKnobs[i].isPressed)
-    {
-      sliderKnobs[i].isPressed = false;
-      int16_t newGain = AudioUserDsp_CalculateGain(i, &sliderKnobs[i]);
-      if(newGain != biquadFilters[i].gain)
-        AudioUserDsp_BiquadFilterConfig(&biquadFilters[i], newGain, biquadFilters[i].frequency, biquadFilters[i].bandwidth);
-    }
-  }
- 
   AudioUserDsp_Process(newDataPointer, data_len);
 
   buffer->wr_ptr += data_len; // increments buffer

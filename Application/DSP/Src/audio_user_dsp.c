@@ -2,12 +2,66 @@
 #include "usb_audio.h"
 #include <math.h>
 
-#define PI 3.14159265358979323846f
+#define PI 3.14159265358979323846
 
-BiquadFilter biquadFilters[NUMBER_OF_BANDS];
+typedef struct BiquadFilter {
+  float b0, b1, b2, a1, a2;
+  float x1[2], x2[2], y1[2], y2[2];
+  int8_t gain;
+} BiquadFilter;
+
+static const float frequencies[EQ_BAND_COUNT] = {30, 60, 150, 400, 1000, 3000, 8000, 16000};
+static const float bandwidths[EQ_BAND_COUNT] =  {1,   1,   2,   2,    2,    3,    3,     3};
+
+volatile int8_t eqGains[EQ_BAND_COUNT];
+
+static BiquadFilter filters[EQ_BAND_COUNT];
+
+static void AudioUserDsp_BuildBand(uint32_t band, int8_t gain)
+{
+  BiquadFilter* filter = &filters[band];
+  double A = pow(10.0, gain / 40.0);
+  double omega = 2.0 * PI * frequencies[band] / USB_AUDIO_CONFIG_PLAY_DEF_FREQ;
+  double alpha = sin(omega) * sinh(log(2) / 2.0 * bandwidths[band] * omega / sin(omega));
+
+  double b0 = 1.0 + alpha * A;
+  double b1 = -2.0 * cos(omega);
+  double b2 = 1.0 - alpha * A;
+  double a0 = 1.0 + alpha / A;
+  double a1 = -2.0 * cos(omega);
+  double a2 = 1.0 - alpha / A;
+
+  filter->b0 = (float)(b0 / a0);
+  filter->b1 = (float)(b1 / a0);
+  filter->b2 = (float)(b2 / a0);
+  filter->a1 = (float)(a1 / a0);
+  filter->a2 = (float)(a2 / a0);
+  filter->gain = gain;
+}
+
+void AudioUserDsp_Init(void)
+{
+  for(uint32_t i = 0; i < EQ_BAND_COUNT; i++)
+  {
+    filters[i] = (BiquadFilter){0};
+    AudioUserDsp_BuildBand(i, eqGains[i]);
+  }
+}
 
 void AudioUserDsp_Process(uint8_t* frames, uint32_t length)
 {
+  // A rebuild costs several libm calls; one band per packet keeps the ISR
+  // inside its 1 ms budget, and the remaining bands converge on later packets.
+  for(uint32_t i = 0; i < EQ_BAND_COUNT; i++)
+  {
+    int8_t gain = eqGains[i];
+    if(filters[i].gain != gain)
+    {
+      AudioUserDsp_BuildBand(i, gain);
+      break;
+    }
+  }
+
   for(uint32_t offset = 0; offset + 4 <= length; offset += 4)
   {
     for(uint32_t channel = 0; channel < 2; channel++)
@@ -15,9 +69,9 @@ void AudioUserDsp_Process(uint8_t* frames, uint32_t length)
       uint8_t* bytes = frames + offset + 2 * channel;
       float sample = (int16_t)(bytes[0] | (bytes[1] << 8));
 
-      for(uint32_t i = 0; i < NUMBER_OF_BANDS; i++)
+      for(uint32_t i = 0; i < EQ_BAND_COUNT; i++)
       {
-        BiquadFilter* filter = &biquadFilters[i];
+        BiquadFilter* filter = &filters[i];
         float output =
             filter->b0 * sample
           + filter->b1 * filter->x1[channel]
@@ -42,39 +96,4 @@ void AudioUserDsp_Process(uint8_t* frames, uint32_t length)
       bytes[1] = result >> 8;
     }
   }
-}
-
-int16_t AudioUserDsp_CalculateGain(uint16_t sliderY, SliderKnob* sliderKnob)
-{
-  double inputMin = sliderKnob->sliderY;
-  double inputMax = sliderKnob->sliderY + sliderKnob->sliderHeight;
-  double outputMax = 15;
-  double outputMin = -15;
-  int16_t newGain = outputMax + (sliderKnob->knobY - inputMin) * (outputMin - outputMax) / (inputMax - inputMin);
-  return newGain;
-}
-
-
-void AudioUserDsp_BiquadFilterConfig(BiquadFilter* filter, int16_t gain, int16_t frequency, int16_t bandwidth)
-{
-  double A = pow(10.0, gain / 40.0);
-  double omega = 2.0 * PI * frequency / USB_AUDIO_CONFIG_PLAY_DEF_FREQ;
-  double alpha = sin(omega) * sinh(log(2) / 2.0 * bandwidth * omega / sin(omega));
-
-  double b0 = 1.0 + alpha * A;
-  double b1 = -2.0 * cos(omega);
-  double b2 = 1.0 - alpha * A;
-  double a0 = 1.0 + alpha / A;
-  double a1 = -2.0 * cos(omega);
-  double a2 = 1.0 - alpha / A;
-
-  filter->b0 = (float)(b0 / a0);
-  filter->b1 = (float)(b1 / a0);
-  filter->b2 = (float)(b2 / a0);
-  filter->a1 = (float)(a1 / a0);
-  filter->a2 = (float)(a2 / a0);
-
-  filter->gain = gain;
-  filter->frequency = frequency;
-  filter->bandwidth = bandwidth;
 }

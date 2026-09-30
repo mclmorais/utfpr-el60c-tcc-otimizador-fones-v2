@@ -1,4 +1,5 @@
 #include "user_lcd.h"
+#include "audio_user_dsp.h"
 #define FOREGROUND_LAYER_OFFSET  (800 * 480 * sizeof(uint16_t))  // Adjust this offset based on your needs
 
 // pictures -----------------------------------------------------------
@@ -93,14 +94,14 @@ IncrementButton plusButtons[] = {
 };
 
 SliderKnob sliderKnobs[] = {
-  { 200 + 50,  25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7},
-  { 200 + 110, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7},
-  { 200 + 170, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7},
-  { 200 + 230, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7},
-  { 200 + 290, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7},
-  { 200 + 350, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7},
-  { 200 + 410, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7},
-  { 200 + 470, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, false, 5, 7}
+  { 200 + 50,  25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7},
+  { 200 + 110, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7},
+  { 200 + 170, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7},
+  { 200 + 230, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7},
+  { 200 + 290, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7},
+  { 200 + 350, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7},
+  { 200 + 410, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7},
+  { 200 + 470, 25, 60, 400, LCD_COLOR_BLACK, 160, 20, 5, 7}
 };
 
 // external variable declarations -------------------------------------
@@ -195,7 +196,7 @@ void LCD_UpdateState()
     for(uint8_t i = 0; i < NUMBER_OF_SLIDER_BUTTONS; i++)
     {
       LCD_InitSlider(i);
-      LCD_DisplayKnob(i, sliderKnobs[i].knobY);
+      LCD_DisplayKnob(i, LCD_TranslateGainToKnobPosition(i, eqGains[i]));
     }
   }
   else
@@ -359,33 +360,31 @@ void LCD_DisplayKnob(uint8_t knobIndex, uint16_t newKnobY)
 
   knob->knobY = newKnobY;
 
-  double inputMin = knob->sliderY;
-  double inputMax = knob->sliderY + knob->sliderHeight;
-  double outputMax = 15;
-  double outputMin = -15;
-  int16_t newGain = outputMax + (knob->knobY - inputMin) * (outputMin - outputMax) / (inputMax - inputMin);
-  if(newGain < outputMin)
-    newGain = outputMin;
-  else if(newGain > outputMax)
-    newGain = outputMax;
   char text[5];
-  sprintf(text, "%3i", newGain);
+  sprintf(text, "%3i", LCD_TranslateKnobPositionToGain(knobIndex, newKnobY));
 
   BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
   BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
   BSP_LCD_DisplayStringAt(knob->sliderX, 450, (uint8_t *)text, LEFT_MODE);
 }
 
-int16_t LCD_TranslateGainToKnobPosition(uint8_t knobIndex, uint16_t gain)
+uint16_t LCD_TranslateGainToKnobPosition(uint8_t knobIndex, int8_t gain)
 {
   SliderKnob* knob = &sliderKnobs[knobIndex];
-  double outputMin = knob->sliderY;
-  double outputMax = knob->sliderY + knob->sliderHeight;
-  double inputMin = -15;
-  double inputMax = 15;
-  int16_t knobPosition = outputMax + (gain - inputMin) * (outputMin - outputMax) / (inputMax - inputMin);
-  return knobPosition;
-  // knob->knobY = knobPosition;
+  int32_t bottom = knob->sliderY + knob->sliderHeight;
+  return bottom - (gain - EQ_GAIN_MIN_DB) * knob->sliderHeight / (EQ_GAIN_MAX_DB - EQ_GAIN_MIN_DB);
+}
+
+int8_t LCD_TranslateKnobPositionToGain(uint8_t knobIndex, uint16_t knobY)
+{
+  SliderKnob* knob = &sliderKnobs[knobIndex];
+  int32_t bottom = knob->sliderY + knob->sliderHeight;
+  int32_t gain = EQ_GAIN_MIN_DB + ((bottom - knobY) * (EQ_GAIN_MAX_DB - EQ_GAIN_MIN_DB) + knob->sliderHeight / 2) / knob->sliderHeight;
+  if(gain < EQ_GAIN_MIN_DB)
+    return EQ_GAIN_MIN_DB;
+  if(gain > EQ_GAIN_MAX_DB)
+    return EQ_GAIN_MAX_DB;
+  return gain;
 }
 
 void LCD_UpdateButton(uint8_t buttonIndex, bool isPressed, bool shouldToggleOtherButtons)
