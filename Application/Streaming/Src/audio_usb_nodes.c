@@ -405,8 +405,7 @@ static int8_t USB_AudioStreamingInputDataReceived(uint16_t data_len, uint32_t no
     }
   }
  
-  for (int8_t i = 0; i < 8; i++)
-    AudioUserDsp_ApplyFilterToSamples(newDataPointer, data_len, AudioUserDsp_BiquadFilter, AudioUserDsp_BiquadFilter, i);
+  AudioUserDsp_Process(newDataPointer, data_len);
 
   buffer->wr_ptr += data_len; // increments buffer
 

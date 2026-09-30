@@ -2,70 +2,46 @@
 #include "usb_audio.h"
 #include <math.h>
 
-void AudioUserDsp_FrameToSamples(uint8_t*, int16_t* leftSamplePointer, int16_t* rightSamplePointer);
-void AudioUserDsp_SamplesToFrame(uint8_t*, int16_t* leftSamplePointer, int16_t* rightSamplePointer);
-
 #define PI 3.14159265358979323846f
 
 BiquadFilter biquadFilters[NUMBER_OF_BANDS];
 
-void AudioUserDsp_ApplyFilterToSamples(uint8_t* dataPointer, uint32_t dataLength, int16_t (*leftChannelFilter)(int16_t, uint8_t), int16_t (*rightChannelFilter)(int16_t, uint8_t), uint8_t filterIndex)
+void AudioUserDsp_Process(uint8_t* frames, uint32_t length)
 {
-  int16_t leftSample, rightSample;
- 
-  for (uint8_t i = 0; i < dataLength; i += 4)
+  for(uint32_t offset = 0; offset + 4 <= length; offset += 4)
   {
-    uint8_t* framePointer = dataPointer + i;
+    for(uint32_t channel = 0; channel < 2; channel++)
+    {
+      uint8_t* bytes = frames + offset + 2 * channel;
+      float sample = (int16_t)(bytes[0] | (bytes[1] << 8));
 
-    AudioUserDsp_FrameToSamples(framePointer, &leftSample, &rightSample);
+      for(uint32_t i = 0; i < NUMBER_OF_BANDS; i++)
+      {
+        BiquadFilter* filter = &biquadFilters[i];
+        float output =
+            filter->b0 * sample
+          + filter->b1 * filter->x1[channel]
+          + filter->b2 * filter->x2[channel]
+          - filter->a1 * filter->y1[channel]
+          - filter->a2 * filter->y2[channel];
 
-    if(leftChannelFilter)
-      leftSample = leftChannelFilter(leftSample, filterIndex);
+        filter->x2[channel] = filter->x1[channel];
+        filter->x1[channel] = sample;
+        filter->y2[channel] = filter->y1[channel];
+        filter->y1[channel] = output;
+        sample = output;
+      }
 
-    if(rightChannelFilter)
-      rightSample = rightChannelFilter(rightSample, filterIndex);
+      if(sample > 32767.0f)
+        sample = 32767.0f;
+      else if(sample < -32768.0f)
+        sample = -32768.0f;
 
-    AudioUserDsp_SamplesToFrame(framePointer, &leftSample, &rightSample);
+      uint16_t result = (uint16_t)(int16_t)sample;
+      bytes[0] = result & 0xFF;
+      bytes[1] = result >> 8;
+    }
   }
-}
-
-void AudioUserDsp_FrameToSamples(uint8_t* framePointer, int16_t* leftSamplePointer, int16_t* rightSamplePointer)
-{
-  *leftSamplePointer  = framePointer[1] * 256 + framePointer[0];
-  *rightSamplePointer = framePointer[3] * 256 + framePointer[2];
-}
-
-void AudioUserDsp_SamplesToFrame(uint8_t* framePointer, int16_t* leftSamplePointer, int16_t* rightSamplePointer)
-{
-  framePointer[0] = ((uint16_t)*leftSamplePointer) % 256;
-  framePointer[1] = ((uint16_t)*leftSamplePointer) / 256;
-  framePointer[2] = ((uint16_t)*rightSamplePointer) % 256;
-  framePointer[3] = ((uint16_t)*rightSamplePointer) / 256;
-}
-
-int16_t AudioUserDsp_BiquadFilter(int16_t sample, uint8_t filterIndex)
-{
-  BiquadFilter* filter = &biquadFilters[filterIndex];
-
-  double fInSample = (float)(sample);
-  double fOutSample =
-      filter->b0 * fInSample
-    + filter->b1 * filter->in_z1
-    + filter->b2 * filter->in_z2
-    - filter->a1 * filter->out_z1
-    - filter->a2 * filter->out_z2;
-
-  filter->in_z2   = filter->in_z1;
-  filter->in_z1   = fInSample;
-  filter->out_z2  = filter->out_z1;
-  filter->out_z1  = fOutSample;
-
-  if(fOutSample > 32767)
-    fOutSample = 32767;
-  else if(fOutSample < -32768)
-    fOutSample = -32768;
-
-  return (int16_t)fOutSample;
 }
 
 int16_t AudioUserDsp_CalculateGain(uint16_t sliderY, SliderKnob* sliderKnob)
@@ -101,13 +77,4 @@ void AudioUserDsp_BiquadFilterConfig(BiquadFilter* filter, int16_t gain, int16_t
   filter->gain = gain;
   filter->frequency = frequency;
   filter->bandwidth = bandwidth;
-  
-  if(!filter->isInitialized)
-  {
-    filter->in_z1 = 0;
-    filter->in_z2 = 0;
-    filter->out_z1 = 0;
-    filter->out_z2 = 0;
-    filter->isInitialized = true;
-  }
 }
