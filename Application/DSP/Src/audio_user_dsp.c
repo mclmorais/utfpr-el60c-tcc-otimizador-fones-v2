@@ -3,6 +3,7 @@
 #include <math.h>
 
 #define PI 3.14159265358979323846
+#define BAND_BANDWIDTH_OCTAVES (1.0 / 3.0)
 
 typedef struct BiquadFilter {
   float b0, b1, b2, a1, a2;
@@ -10,8 +11,39 @@ typedef struct BiquadFilter {
   int8_t gain;
 } BiquadFilter;
 
-static const float frequencies[EQ_BAND_COUNT] = {30, 60, 150, 400, 1000, 3000, 8000, 16000};
-static const float bandwidths[EQ_BAND_COUNT] =  {1,   1,   2,   2,    2,    3,    3,     3};
+const EqBand eqBands[EQ_BAND_COUNT] = {
+  {20, "20"},
+  {25, "25"},
+  {31.5f, "31"},
+  {40, "40"},
+  {50, "50"},
+  {63, "63"},
+  {80, "80"},
+  {100, "100"},
+  {125, "125"},
+  {160, "160"},
+  {200, "200"},
+  {250, "250"},
+  {315, "315"},
+  {400, "400"},
+  {500, "500"},
+  {630, "630"},
+  {800, "800"},
+  {1000, "1k"},
+  {1250, "1k2"},
+  {1600, "1k6"},
+  {2000, "2k"},
+  {2500, "2k5"},
+  {3150, "3k1"},
+  {4000, "4k"},
+  {5000, "5k"},
+  {6300, "6k3"},
+  {8000, "8k"},
+  {10000, "10k"},
+  {12500, "12k"},
+  {16000, "16k"},
+  {20000, "20k"}
+};
 
 volatile int8_t eqGains[EQ_BAND_COUNT];
 
@@ -21,8 +53,8 @@ static void AudioUserDsp_BuildBand(uint32_t band, int8_t gain)
 {
   BiquadFilter* filter = &filters[band];
   double A = pow(10.0, gain / 40.0);
-  double omega = 2.0 * PI * frequencies[band] / USB_AUDIO_CONFIG_PLAY_DEF_FREQ;
-  double alpha = sin(omega) * sinh(log(2) / 2.0 * bandwidths[band] * omega / sin(omega));
+  double omega = 2.0 * PI * eqBands[band].frequency / USB_AUDIO_CONFIG_PLAY_DEF_FREQ;
+  double alpha = sin(omega) * sinh(log(2) / 2.0 * BAND_BANDWIDTH_OCTAVES * omega / sin(omega));
 
   double b0 = 1.0 + alpha * A;
   double b1 = -2.0 * cos(omega);

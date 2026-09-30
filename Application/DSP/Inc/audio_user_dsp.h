@@ -3,10 +3,16 @@
 
 #include <stdint.h>
 
-#define EQ_BAND_COUNT 8
+#define EQ_BAND_COUNT 31
 #define EQ_GAIN_MIN_DB (-15)
 #define EQ_GAIN_MAX_DB 15
 
+typedef struct EqBand {
+  float frequency;
+  const char* label;
+} EqBand;
+
+extern const EqBand eqBands[EQ_BAND_COUNT];
 extern volatile int8_t eqGains[EQ_BAND_COUNT];
 
 void AudioUserDsp_Init(void);

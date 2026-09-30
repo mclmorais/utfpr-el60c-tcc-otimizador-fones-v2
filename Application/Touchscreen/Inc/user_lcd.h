@@ -88,6 +88,9 @@ void LCD_DisplayKnob(uint8_t knobIndex, uint16_t newKnobY);
 void BSP_LCD_DrawPicture(const uint8_t* image, uint32_t width, uint32_t height, uint32_t xPosition, uint32_t yPosition);
 uint16_t LCD_TranslateGainToKnobPosition(uint8_t knobIndex, int8_t gain);
 int8_t LCD_TranslateKnobPositionToGain(uint8_t knobIndex, uint16_t knobY);
+int8_t LCD_ColumnToBand(uint8_t column);
+void LCD_DisplayEqPage(void);
+void LCD_ChangeEqPage(int8_t step);
 void LCD_UpdateRectangleButton(RectangleButton* button);
 void LCD_UpdateState();
 void LCD_InitSlider(uint8_t knobIndex);
@@ -99,5 +102,7 @@ extern SliderKnob sliderKnobs[];
 extern RectangleButton saveButton;
 extern RectangleButton resetButton;
 extern RectangleButton undoButton;
+extern RectangleButton previousPageButton;
+extern RectangleButton nextPageButton;
 
 #endif // __LCD_H
