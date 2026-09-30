@@ -86,39 +86,55 @@ O sistema implementa:
 
 ## Como Compilar e Executar
 
+O projeto usa CMake. Ele foi convertido do STM32CubeIDE na versão 2.0.
+
 ### Pré-requisitos
 
-1. **STM32CubeIDE** ou **SW4STM32** (System Workbench for STM32)
-2. **STM32CubeMX** (opcional, para configuração de periféricos)
-3. **STM32F7xx HAL Drivers** (já incluídos no projeto)
-4. **Placa STM32F769I-Discovery**
+1. **Visual Studio Code** com a extensão **STM32CubeIDE for Visual Studio Code**, da STMicroelectronics.
+2. No **STM32Cube Bundles Manager** da extensão, instale:
+   - `gnu-tools-for-stm32` (compilador GCC, versão 14.3.1)
+   - `cmake` e `ninja`
+   - `programmer` (STM32CubeProgrammer)
+   - `stlink-gdbserver`
+3. **Placa STM32F769I-Discovery** e dois cabos USB com dados:
+   - **CN16 (ST-LINK)**: grava e depura o firmware.
+   - **USB OTG**: conecta a placa como dispositivo de áudio.
 
-### Passos para Compilação
+No Linux, instale as regras do udev do ST-LINK para usar a placa sem `root`:
 
-1. **Importar o Projeto**:
-   - Abra o STM32CubeIDE
-   - File → Import → Existing Projects into Workspace
-   - Selecione o diretório do projeto
+```bash
+sudo cp ~/.local/share/stm32cube/bundles/stlink-gdbserver/*/bin/49-stlink*.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
 
-2. **Configurar o Build**:
-   - O projeto já está configurado para STM32F769NIHx
-   - Verifique o arquivo de linker: `STM32F769NIHx_FLASH.ld`
+### Compilar
 
-3. **Compilar**:
-   - Project → Build All (ou Ctrl+B)
-   - Verifique se não há erros de compilação
+No VS Code, abra a pasta do projeto, escolha o preset **Debug** e clique em **Build**.
 
-4. **Programar a Placa**:
-   - Conecte a placa STM32F769I-Discovery via USB
-   - Configure a conexão ST-Link no IDE
-   - Run → Debug (ou F11) para programar e iniciar debug
-   - Ou Run → Run (ou Ctrl+F11) para apenas programar
+Pelo terminal, com as ferramentas dos bundles no `PATH`:
 
-### Configuração de Launch
+```bash
+cmake --preset Debug
+cmake --build --preset Debug
+```
 
-O projeto inclui arquivos de configuração de launch:
-- `horoscope.launch` - Configuração padrão
-- `horoscope Debug.launch` - Configuração de debug
+O firmware fica em `build/Debug/horoscope.elf`.
+
+### Gravar a Placa
+
+```bash
+STM32_Programmer_CLI -c port=SWD -w build/Debug/horoscope.elf -v -rst
+```
+
+A gravação apaga só os setores do programa. As configurações do equalizador, salvas no setor 10, são mantidas.
+
+### Capturar a Tela do LCD
+
+O script `tools/lcd_capture.py` lê a imagem do LCD pelo ST-LINK e salva um PNG. O firmware continua funcionando durante a leitura, que leva cerca de 10 segundos. Ele precisa do Python com a biblioteca Pillow.
+
+```bash
+tools/lcd_capture.py lcd.png
+```
 
 ## Como Usar
 
