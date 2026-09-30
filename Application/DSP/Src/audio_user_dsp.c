@@ -5,11 +5,21 @@
 #define PI 3.14159265358979323846
 #define BAND_BANDWIDTH_OCTAVES (1.0 / 3.0)
 
-typedef struct BiquadFilter {
+// Float round-off recirculates through the near-unit-circle poles of the
+// lowest bands and lands above the 16-bit noise floor; double costs about
+// 2.7x per band, so only those bands pay for it.
+#define DOUBLE_PRECISION_BAND_COUNT 7
+#define SINGLE_PRECISION_BAND_COUNT (EQ_BAND_COUNT - DOUBLE_PRECISION_BAND_COUNT)
+
+typedef struct DoubleBiquad {
+  double b0, b1, b2, a1, a2;
+  double x1[2], x2[2], y1[2], y2[2];
+} DoubleBiquad;
+
+typedef struct FloatBiquad {
   float b0, b1, b2, a1, a2;
   float x1[2], x2[2], y1[2], y2[2];
-  int8_t gain;
-} BiquadFilter;
+} FloatBiquad;
 
 const EqBand eqBands[EQ_BAND_COUNT] = {
   {20, "20"},
@@ -47,37 +57,100 @@ const EqBand eqBands[EQ_BAND_COUNT] = {
 
 volatile int8_t eqGains[EQ_BAND_COUNT];
 
-static BiquadFilter filters[EQ_BAND_COUNT];
+static DoubleBiquad lowFilters[DOUBLE_PRECISION_BAND_COUNT];
+static FloatBiquad highFilters[SINGLE_PRECISION_BAND_COUNT];
+static int8_t builtGains[EQ_BAND_COUNT];
 
 static void AudioUserDsp_BuildBand(uint32_t band, int8_t gain)
 {
-  BiquadFilter* filter = &filters[band];
   double A = pow(10.0, gain / 40.0);
   double omega = 2.0 * PI * eqBands[band].frequency / USB_AUDIO_CONFIG_PLAY_DEF_FREQ;
   double alpha = sin(omega) * sinh(log(2) / 2.0 * BAND_BANDWIDTH_OCTAVES * omega / sin(omega));
 
-  double b0 = 1.0 + alpha * A;
-  double b1 = -2.0 * cos(omega);
-  double b2 = 1.0 - alpha * A;
   double a0 = 1.0 + alpha / A;
-  double a1 = -2.0 * cos(omega);
-  double a2 = 1.0 - alpha / A;
+  double b0 = (1.0 + alpha * A) / a0;
+  double b1 = -2.0 * cos(omega) / a0;
+  double b2 = (1.0 - alpha * A) / a0;
+  double a1 = b1;
+  double a2 = (1.0 - alpha / A) / a0;
 
-  filter->b0 = (float)(b0 / a0);
-  filter->b1 = (float)(b1 / a0);
-  filter->b2 = (float)(b2 / a0);
-  filter->a1 = (float)(a1 / a0);
-  filter->a2 = (float)(a2 / a0);
-  filter->gain = gain;
+  if(band < DOUBLE_PRECISION_BAND_COUNT)
+  {
+    DoubleBiquad* filter = &lowFilters[band];
+    filter->b0 = b0;
+    filter->b1 = b1;
+    filter->b2 = b2;
+    filter->a1 = a1;
+    filter->a2 = a2;
+  }
+  else
+  {
+    FloatBiquad* filter = &highFilters[band - DOUBLE_PRECISION_BAND_COUNT];
+    filter->b0 = (float)b0;
+    filter->b1 = (float)b1;
+    filter->b2 = (float)b2;
+    filter->a1 = (float)a1;
+    filter->a2 = (float)a2;
+  }
+  builtGains[band] = gain;
 }
 
 void AudioUserDsp_Init(void)
 {
+  for(uint32_t i = 0; i < DOUBLE_PRECISION_BAND_COUNT; i++)
+    lowFilters[i] = (DoubleBiquad){0};
+  for(uint32_t i = 0; i < SINGLE_PRECISION_BAND_COUNT; i++)
+    highFilters[i] = (FloatBiquad){0};
   for(uint32_t i = 0; i < EQ_BAND_COUNT; i++)
-  {
-    filters[i] = (BiquadFilter){0};
     AudioUserDsp_BuildBand(i, eqGains[i]);
+}
+
+// A 0 dB band is an exact identity, so it is skipped; its history still
+// tracks the signal so that raising its gain later does not click.
+static double AudioUserDsp_RunLowBands(double sample, uint32_t channel)
+{
+  for(uint32_t i = 0; i < DOUBLE_PRECISION_BAND_COUNT; i++)
+  {
+    DoubleBiquad* filter = &lowFilters[i];
+    double output = sample;
+    if(builtGains[i] != 0)
+      output =
+          filter->b0 * sample
+        + filter->b1 * filter->x1[channel]
+        + filter->b2 * filter->x2[channel]
+        - filter->a1 * filter->y1[channel]
+        - filter->a2 * filter->y2[channel];
+
+    filter->x2[channel] = filter->x1[channel];
+    filter->x1[channel] = sample;
+    filter->y2[channel] = filter->y1[channel];
+    filter->y1[channel] = output;
+    sample = output;
   }
+  return sample;
+}
+
+static float AudioUserDsp_RunHighBands(float sample, uint32_t channel)
+{
+  for(uint32_t i = 0; i < SINGLE_PRECISION_BAND_COUNT; i++)
+  {
+    FloatBiquad* filter = &highFilters[i];
+    float output = sample;
+    if(builtGains[i + DOUBLE_PRECISION_BAND_COUNT] != 0)
+      output =
+          filter->b0 * sample
+        + filter->b1 * filter->x1[channel]
+        + filter->b2 * filter->x2[channel]
+        - filter->a1 * filter->y1[channel]
+        - filter->a2 * filter->y2[channel];
+
+    filter->x2[channel] = filter->x1[channel];
+    filter->x1[channel] = sample;
+    filter->y2[channel] = filter->y1[channel];
+    filter->y1[channel] = output;
+    sample = output;
+  }
+  return sample;
 }
 
 void AudioUserDsp_Process(uint8_t* frames, uint32_t length)
@@ -87,7 +160,7 @@ void AudioUserDsp_Process(uint8_t* frames, uint32_t length)
   for(uint32_t i = 0; i < EQ_BAND_COUNT; i++)
   {
     int8_t gain = eqGains[i];
-    if(filters[i].gain != gain)
+    if(builtGains[i] != gain)
     {
       AudioUserDsp_BuildBand(i, gain);
       break;
@@ -99,24 +172,8 @@ void AudioUserDsp_Process(uint8_t* frames, uint32_t length)
     for(uint32_t channel = 0; channel < 2; channel++)
     {
       uint8_t* bytes = frames + offset + 2 * channel;
-      float sample = (int16_t)(bytes[0] | (bytes[1] << 8));
-
-      for(uint32_t i = 0; i < EQ_BAND_COUNT; i++)
-      {
-        BiquadFilter* filter = &filters[i];
-        float output =
-            filter->b0 * sample
-          + filter->b1 * filter->x1[channel]
-          + filter->b2 * filter->x2[channel]
-          - filter->a1 * filter->y1[channel]
-          - filter->a2 * filter->y2[channel];
-
-        filter->x2[channel] = filter->x1[channel];
-        filter->x1[channel] = sample;
-        filter->y2[channel] = filter->y1[channel];
-        filter->y1[channel] = output;
-        sample = output;
-      }
+      double input = (int16_t)(bytes[0] | (bytes[1] << 8));
+      float sample = AudioUserDsp_RunHighBands((float)AudioUserDsp_RunLowBands(input, channel), channel);
 
       if(sample > 32767.0f)
         sample = 32767.0f;
