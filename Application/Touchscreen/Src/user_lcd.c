@@ -388,6 +388,10 @@ void LCD_DisplayEqPage(void)
     LCD_InitSlider(column);
     LCD_DisplayKnob(column, LCD_TranslateGainToKnobPosition(column, eqGains[band]));
   }
+
+  // Font24 labels are 24 px tall and their background overwrites the frame's top edge at y = 23.
+  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+  BSP_LCD_FillRect(frameX, frameY, frameWidth, 2);
 }
 
 void LCD_ChangeEqPage(int8_t step)
