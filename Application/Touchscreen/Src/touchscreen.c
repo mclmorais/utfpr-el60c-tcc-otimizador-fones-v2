@@ -135,7 +135,8 @@ void Touchscreen_ButtonHandler(void)
     if(!isTapLatched)
     {
       isTapLatched = true;
-      LCD_ToggleFlip();
+      LCD_SetFlip(!flipButton.isActive);
+      FlashPersistence_WriteFlip(flipButton.isActive);
     }
 
     return;
@@ -178,7 +179,7 @@ void Touchscreen_ButtonHandler(void)
           LCD_UpdateRectangleButton(&saveButton);
           LCD_UpdateRectangleButton(&undoButton);
           LCD_UpdateRectangleButton(&resetButton);
-          FlashPersistence_Write();
+          FlashPersistence_Write(flipButton.isActive);
         }
 
         return;

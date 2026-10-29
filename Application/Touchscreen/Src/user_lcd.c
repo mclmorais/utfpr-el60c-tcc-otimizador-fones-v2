@@ -274,12 +274,12 @@ void LCD_UpdateState()
   LCD_UpdateRectangleButton(&flipButton);
 }
 
-void LCD_ToggleFlip(void)
+void LCD_SetFlip(bool isFlipped)
 {
-  flipButton.isActive = !flipButton.isActive;
+  flipButton.isActive = isFlipped;
 
   // Mirroring both axes of the panel's scan turns the image 180 degrees without touching the framebuffer.
-  uint8_t madctl[] = {OTM8009A_CMD_MADCTR, OTM8009A_MADCTR_MODE_LANDSCAPE ^ (flipButton.isActive ? MADCTR_MIRROR_XY : 0)};
+  uint8_t madctl[] = {OTM8009A_CMD_MADCTR, OTM8009A_MADCTR_MODE_LANDSCAPE ^ (isFlipped ? MADCTR_MIRROR_XY : 0)};
   DSI_IO_WriteCmd(0, madctl);
 
   LCD_UpdateRectangleButton(&flipButton);

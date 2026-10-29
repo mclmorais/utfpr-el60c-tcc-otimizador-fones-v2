@@ -94,7 +94,7 @@ void LCD_ChangeEqPage(int8_t step);
 void LCD_UpdateRectangleButton(RectangleButton* button);
 void LCD_UpdateState();
 void LCD_InitSlider(uint8_t knobIndex);
-void LCD_ToggleFlip(void);
+void LCD_SetFlip(bool isFlipped);
 
 
 extern CircleButtonTypeDef circleButtons[];
