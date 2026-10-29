@@ -21,9 +21,17 @@ WIDTH, HEIGHT = 800, 480
 FB_SIZE = WIDTH * HEIGHT * 4
 
 
+def bundle_path():
+    if "CUBE_BUNDLE_PATH" in os.environ:
+        return os.environ["CUBE_BUNDLE_PATH"]
+    if sys.platform == "win32":
+        return os.path.join(os.environ["LOCALAPPDATA"], "stm32cube", "bundles")
+    return os.path.expanduser("~/.local/share/stm32cube/bundles")
+
+
 def programmer_cli():
-    found = glob.glob(os.path.expanduser(
-        "~/.local/share/stm32cube/bundles/programmer/*/bin/STM32_Programmer_CLI"))
+    found = glob.glob(os.path.join(
+        bundle_path(), "programmer", "*", "bin", "STM32_Programmer_CLI*"))
     if not found:
         sys.exit("STM32_Programmer_CLI not found; install the 'programmer' bundle")
     return sorted(found)[-1]
