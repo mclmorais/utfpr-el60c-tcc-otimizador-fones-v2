@@ -70,7 +70,7 @@ static uint32_t Touchscreen_Handle_NewTouch(void);
 extern bool shouldPrintSamples;
 extern bool shouldApplyFilter;
 bool areInitialCirclesDrawn = false;
-static bool isPageTurnLatched = false;
+static bool isTapLatched = false;
 
 #define CIRCLE_BUTTON_DEBOUNCE_TIMER 100
 uint32_t yOffset = 0;
@@ -94,7 +94,7 @@ void Touchscreen_ButtonHandler(void)
 
   if(!TS_State.touchDetected)
   {
-    isPageTurnLatched = false;
+    isTapLatched = false;
     for(uint8_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++) 
     {
       if(++circleButtons[i].debounceTimer > CIRCLE_BUTTON_DEBOUNCE_TIMER)
@@ -105,6 +105,12 @@ void Touchscreen_ButtonHandler(void)
 
   touchXPosition = TS_State.touchX[0];
   touchYPosition = TS_State.touchY[0];
+
+  if(flipButton.isActive)
+  {
+    touchXPosition = BSP_LCD_GetXSize() - 1 - touchXPosition;
+    touchYPosition = BSP_LCD_GetYSize() - 1 - touchYPosition;
+  }
 
   for(uint8_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++) 
   {
@@ -123,6 +129,19 @@ void Touchscreen_ButtonHandler(void)
     }
   }
 
+  if(touchXPosition > flipButton.x && touchXPosition < flipButton.x + flipButton.width &&
+     touchYPosition > flipButton.y && touchYPosition < flipButton.y + flipButton.height)
+  {
+    if(!isTapLatched)
+    {
+      isTapLatched = true;
+      LCD_SetFlip(!flipButton.isActive);
+      FlashPersistence_WriteFlip(flipButton.isActive);
+    }
+
+    return;
+  }
+
   if(circleButtons[0].isActive)
   {  
     if(touchYPosition > previousPageButton.y && touchYPosition < previousPageButton.y + previousPageButton.height)
@@ -135,9 +154,9 @@ void Touchscreen_ButtonHandler(void)
 
       if(step != 0)
       {
-        if(!isPageTurnLatched)
+        if(!isTapLatched)
         {
-          isPageTurnLatched = true;
+          isTapLatched = true;
           LCD_ChangeEqPage(step);
         }
 
@@ -160,7 +179,7 @@ void Touchscreen_ButtonHandler(void)
           LCD_UpdateRectangleButton(&saveButton);
           LCD_UpdateRectangleButton(&undoButton);
           LCD_UpdateRectangleButton(&resetButton);
-          FlashPersistence_Write();
+          FlashPersistence_Write(flipButton.isActive);
         }
 
         return;

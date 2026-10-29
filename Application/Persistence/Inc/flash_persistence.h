@@ -3,14 +3,17 @@
 
 // includes 
 #include <stdint.h>
+#include <stdbool.h>
 #include "stm32f7xx_hal.h"
 
 // Bank 2 in dual-bank mode, so erasing it does not stall code running from bank 1; the smallest sector there (16 KB) keeps the erase short.
 #define FLASH_USER_START_ADDR 0x08100000
 #define FLASH_USER_SECTOR FLASH_SECTOR_12
 
-void FlashPersistence_Write();
+void FlashPersistence_Write(bool isFlipped);
+void FlashPersistence_WriteFlip(bool isFlipped);
 void FlashPersistence_Restore();
+bool FlashPersistence_ReadFlip();
 
 
 #endif // __FLASH_PERSISTENCE_H

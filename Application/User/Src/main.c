@@ -76,6 +76,7 @@ int main(void)
 
 	USART1_UART_Init();
 	LCD_Init();
+	LCD_SetFlip(FlashPersistence_ReadFlip());
 	Touchscreen_Init();
 	
 	uint8_t initString[] = "\r\n--- Horoscope Initialization Complete! ---\r\n";

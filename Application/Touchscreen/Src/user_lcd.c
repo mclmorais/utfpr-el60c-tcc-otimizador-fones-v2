@@ -32,6 +32,7 @@
 #define BUTTON_BORDER_SIZE 2
 #define Y_BAR_POSITION -60
 #define EQ_PAGE_COUNT ((EQ_BAND_COUNT + NUMBER_OF_SLIDER_BUTTONS - 1) / NUMBER_OF_SLIDER_BUTTONS)
+#define MADCTR_MIRROR_XY 0xC0 // MY | MX
 
 // private function declarations --------------------------------------
 static void     LCD_LayertInit(uint16_t LayerIndex, uint32_t Address);
@@ -110,6 +111,18 @@ RectangleButton nextPageButton = {
   .inactiveColor = LCD_COLOR_LIGHTGRAY,
   .activeColor = LCD_COLOR_LIGHTGREEN,
   .text = ">",
+  .isPressed = false,
+  .isActive = false
+};
+
+RectangleButton flipButton = {
+  .x = 738,
+  .y = 415,
+  .width = 56,
+  .height = 50,
+  .inactiveColor = LCD_COLOR_LIGHTGRAY,
+  .activeColor = LCD_COLOR_LIGHTGREEN,
+  .text = "180",
   .isPressed = false,
   .isActive = false
 };
@@ -258,6 +271,18 @@ void LCD_UpdateState()
 
   }
 
+  LCD_UpdateRectangleButton(&flipButton);
+}
+
+void LCD_SetFlip(bool isFlipped)
+{
+  flipButton.isActive = isFlipped;
+
+  // Mirroring both axes of the panel's scan turns the image 180 degrees without touching the framebuffer.
+  uint8_t madctl[] = {OTM8009A_CMD_MADCTR, OTM8009A_MADCTR_MODE_LANDSCAPE ^ (isFlipped ? MADCTR_MIRROR_XY : 0)};
+  DSI_IO_WriteCmd(0, madctl);
+
+  LCD_UpdateRectangleButton(&flipButton);
 }
 
 /**
