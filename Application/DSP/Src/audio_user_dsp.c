@@ -55,15 +55,15 @@ const EqBand eqBands[EQ_BAND_COUNT] = {
   {20000, "20k"}
 };
 
-volatile int8_t eqGains[EQ_BAND_COUNT];
+volatile int16_t eqGains[EQ_BAND_COUNT];
 
 static DoubleBiquad lowFilters[DOUBLE_PRECISION_BAND_COUNT];
 static FloatBiquad highFilters[SINGLE_PRECISION_BAND_COUNT];
-static int8_t builtGains[EQ_BAND_COUNT];
+static int16_t builtGains[EQ_BAND_COUNT];
 
-static void AudioUserDsp_BuildBand(uint32_t band, int8_t gain)
+static void AudioUserDsp_BuildBand(uint32_t band, int16_t gain)
 {
-  double A = pow(10.0, gain / 40.0);
+  double A = pow(10.0, gain / (40.0 * EQ_GAIN_STEPS_PER_DB));
   double omega = 2.0 * PI * eqBands[band].frequency / USB_AUDIO_CONFIG_PLAY_DEF_FREQ;
   double alpha = sin(omega) * sinh(log(2) / 2.0 * BAND_BANDWIDTH_OCTAVES * omega / sin(omega));
 
@@ -159,7 +159,7 @@ void AudioUserDsp_Process(uint8_t* frames, uint32_t length)
   // inside its 1 ms budget, and the remaining bands converge on later packets.
   for(uint32_t i = 0; i < EQ_BAND_COUNT; i++)
   {
-    int8_t gain = eqGains[i];
+    int16_t gain = eqGains[i];
     if(builtGains[i] != gain)
     {
       AudioUserDsp_BuildBand(i, gain);
