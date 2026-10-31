@@ -75,6 +75,33 @@ static bool isTapLatched = false;
 #define CIRCLE_BUTTON_DEBOUNCE_TIMER 100
 uint32_t yOffset = 0;
 uint32_t xOffset = 150;
+#define STEP_REPEAT_DELAY_MS 500
+#define STEP_REPEAT_INTERVAL_MS 100
+static uint32_t nextStepRepeatTick;
+
+// An edit makes the last Save, Undo or Reset no longer describe the gains on screen.
+static void MarkEqEdited(void)
+{
+  resetButton.isPressed = false;
+  saveButton.isPressed = false;
+  undoButton.isPressed = false;
+
+  if(resetButton.isActive)
+  {
+    resetButton.isActive = false;
+    LCD_UpdateRectangleButton(&resetButton);
+  }
+  if(saveButton.isActive)
+  {
+    saveButton.isActive = false;
+    LCD_UpdateRectangleButton(&saveButton);
+  }
+  if(undoButton.isActive)
+  {
+    undoButton.isActive = false;
+    LCD_UpdateRectangleButton(&undoButton);
+  }
+}
 
 void Touchscreen_Init(void)
 {
@@ -237,36 +264,38 @@ void Touchscreen_ButtonHandler(void)
       if(band < 0)
         continue;
 
+      int8_t step = LCD_StepButtonAt(i, touchXPosition, touchYPosition);
+      if(step != 0)
+      {
+        uint32_t now = HAL_GetTick();
+        bool isFirstTap = !isTapLatched;
+        if(isFirstTap || (int32_t)(now - nextStepRepeatTick) >= 0)
+        {
+          isTapLatched = true;
+          nextStepRepeatTick = now + (isFirstTap ? STEP_REPEAT_DELAY_MS : STEP_REPEAT_INTERVAL_MS);
+          int16_t gain = eqGains[band] + step;
+          if(gain >= EQ_GAIN_MIN && gain <= EQ_GAIN_MAX)
+          {
+            eqGains[band] = gain;
+            LCD_DisplayKnob(i, gain);
+            MarkEqEdited();
+          }
+        }
+
+        return;
+      }
+
       if((touchYPosition > sliderKnobs[i].sliderY + 10) && (touchYPosition < sliderKnobs[i].sliderY + sliderKnobs[i].sliderHeight - 10))
       {
         if((touchXPosition > sliderKnobs[i].sliderX) && (touchXPosition < sliderKnobs[i].sliderX + sliderKnobs[i].sliderWidth))
         {
           if(++sliderKnobs[i].debounceCount >= sliderKnobs[i].debouceLimit)
           {
-            int8_t gain = LCD_TranslateKnobPositionToGain(i, touchYPosition);
+            int16_t gain = LCD_TranslateKnobPositionToGain(i, touchYPosition);
             eqGains[band] = gain;
-            LCD_DisplayKnob(i, LCD_TranslateGainToKnobPosition(i, gain));
+            LCD_DisplayKnob(i, gain);
             sliderKnobs[i].debounceCount = 0;
-
-            resetButton.isPressed = false;
-            saveButton.isPressed = false;
-            undoButton.isPressed = false;
-            
-            if(resetButton.isActive)
-            {
-              resetButton.isActive = false;
-              LCD_UpdateRectangleButton(&resetButton);
-            }
-            if(saveButton.isActive)
-            {
-              saveButton.isActive = false;
-              LCD_UpdateRectangleButton(&saveButton);
-            }
-            if(undoButton.isActive)
-            {
-              undoButton.isActive = false;
-              LCD_UpdateRectangleButton(&undoButton);
-            } 
+            MarkEqEdited();
             return;
           }
         }
