@@ -42,13 +42,13 @@ void USART1_UART_Init(void)
   }
 }
 
-void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
+void HAL_UART_MspInit(UART_HandleTypeDef* huart)
 {
 
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
 
-  if(uartHandle->Instance == USART1)
+  if(huart->Instance == USART1)
   {
     // initializes the peripherals clock
     PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART1;
@@ -80,10 +80,10 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
   }
 }
 
-void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
+void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
 {
 
-  if(uartHandle->Instance == USART1)
+  if(huart->Instance == USART1)
   {
     // peripheral clock disable
     __HAL_RCC_USART1_CLK_DISABLE();

@@ -7,29 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; COPYRIGHT(c) 2016 STMicroelectronics</center></h2>
+  * Copyright (c) 2016 STMicroelectronics.
+  * All rights reserved.
   *
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -188,6 +171,15 @@ typedef struct
 /**
   * @}
   */
+/** @defgroup STM32F769I_DISCOVERY_LCD_Private_Types_Definitions Private Types Definitions
+  * @{
+  */
+typedef enum
+{
+  LCD_CTRL_NT35510,
+  LCD_CTRL_OTM8009A,
+  LCD_CTRL_NONE
+} LCD_Driver_t;
 
 /** @defgroup STM32F769I_DISCOVERY_LCD_Exported_Variables STM32F769I DISCOVERY LCD Exported Variables
   * @{
@@ -197,6 +189,7 @@ LTDC_HandleTypeDef  hltdc_discovery;
 DSI_HandleTypeDef hdsi_discovery;
 uint32_t lcd_x_size = OTM8009A_800X480_WIDTH;
 uint32_t lcd_y_size = OTM8009A_800X480_HEIGHT;
+LCD_Driver_t        Lcd_Driver_Type = LCD_CTRL_NT35510;
 /**
   * @}
   */
@@ -259,6 +252,7 @@ static void FillTriangle(uint16_t x1, uint16_t x2, uint16_t x3, uint16_t y1, uin
 static void LL_FillBuffer(uint32_t LayerIndex, void *pDst, uint32_t xSize, uint32_t ySize, uint32_t OffLine, uint32_t ColorIndex);
 static void LL_ConvertLineToARGB8888(void * pSrc, void *pDst, uint32_t xSize, uint32_t ColorMode);
 static uint16_t LCD_IO_GetID(void);
+static LCD_Driver_t Driver_Type(LCD_Driver_t Lcd_type);
 /**
   * @}
   */
@@ -343,7 +337,7 @@ uint8_t BSP_LCD_InitEx(LCD_OrientationTypeDef orientation)
 
   dsiPllInit.PLLNDIV  = 100;
   dsiPllInit.PLLIDF   = DSI_PLL_IN_DIV5;
-  dsiPllInit.PLLODF  = DSI_PLL_OUT_DIV1;
+  dsiPllInit.PLLODF   = DSI_PLL_OUT_DIV1;
   laneByteClk_kHz = 62500; /* 500 MHz / 8 = 62.5 MHz = 62500 kHz */
 
   /* Set number of Lanes */
@@ -353,6 +347,20 @@ uint8_t BSP_LCD_InitEx(LCD_OrientationTypeDef orientation)
   hdsi_discovery.Init.TXEscapeCkdiv = laneByteClk_kHz/15620; 
 
   HAL_DSI_Init(&(hdsi_discovery), &(dsiPllInit));
+
+  /* Enable the DSI module */
+  HAL_DSI_Start(&(hdsi_discovery));
+
+  /* Enable the DSI BTW for read operations */
+  HAL_DSI_ConfigFlowControl(&(hdsi_discovery), DSI_FLOW_CONTROL_BTA);
+
+  /* Initialize the font */
+  BSP_LCD_SetFont(&LCD_DEFAULT_FONT);
+
+  Lcd_Driver_Type = Driver_Type(Lcd_Driver_Type);
+
+  /* Stop the DSI module */
+  HAL_DSI_Stop(&(hdsi_discovery));
 
   /* Timing parameters for all Video modes
   * Set Timing parameters of LTDC depending on its chosen orientation
@@ -373,14 +381,26 @@ uint8_t BSP_LCD_InitEx(LCD_OrientationTypeDef orientation)
   VACT = lcd_y_size;
 
   /* The following values are same for portrait and landscape orientations */
-  VSA  = OTM8009A_480X800_VSYNC;        /* 12  */
-  VBP  = OTM8009A_480X800_VBP;          /* 12  */
-  VFP  = OTM8009A_480X800_VFP;          /* 12  */
-  HSA  = OTM8009A_480X800_HSYNC;        /* 63  */
-  HBP  = OTM8009A_480X800_HBP;          /* 120 */
-  HFP  = OTM8009A_480X800_HFP;          /* 120 */   
-
-  hdsivideo_handle.VirtualChannelID = LCD_OTM8009A_ID;
+  if(Lcd_Driver_Type == LCD_CTRL_OTM8009A)
+  {
+    VSA  = OTM8009A_480X800_VSYNC;
+    VBP  = OTM8009A_480X800_VBP;
+    VFP  = OTM8009A_480X800_VFP;
+    HSA  = OTM8009A_480X800_HSYNC;
+    HBP  = OTM8009A_480X800_HBP;
+    HFP  = OTM8009A_480X800_HFP;
+  }
+  else
+  {
+    VSA  = NT35510_480X800_VSYNC;
+    VBP  = NT35510_480X800_VBP;
+    VFP  = NT35510_480X800_VFP;
+    HSA  = NT35510_480X800_HSYNC;
+    HBP  = NT35510_480X800_HBP;
+    HFP  = NT35510_480X800_HFP;
+  }
+  
+  hdsivideo_handle.VirtualChannelID = LCD_Driver_ID;
   hdsivideo_handle.ColorCoding = LCD_DSI_PIXEL_DATA_FMT_RBG888;
   hdsivideo_handle.VSPolarity = DSI_VSYNC_ACTIVE_HIGH;
   hdsivideo_handle.HSPolarity = DSI_HSYNC_ACTIVE_HIGH;
@@ -465,7 +485,7 @@ uint8_t BSP_LCD_InitEx(LCD_OrientationTypeDef orientation)
   /* Enable the DSI host and wrapper after the LTDC initialization
      To avoid any synchronization issue, the DSI shall be started after enabling the LTDC */
   HAL_DSI_Start(&hdsi_discovery);
-
+  
 #if !defined(DATA_IN_ExtSDRAM)
   /* Initialize the SDRAM */
   BSP_SDRAM_Init();
@@ -475,8 +495,19 @@ uint8_t BSP_LCD_InitEx(LCD_OrientationTypeDef orientation)
   BSP_LCD_SetFont(&LCD_DEFAULT_FONT);
 
 /************************End LTDC Initialization*******************************/
+
+ if(Lcd_Driver_Type==LCD_CTRL_NT35510 )
+ {
+/***********************NT35510 Initialization********************************/  
   
-  
+  /* Initialize the NT35510 LCD Display IC Driver (TechShine LCD IC Driver)
+   * depending on configuration set in 'hdsivideo_handle'.
+   */
+  NT35510_Init(NT35510_FORMAT_RGB888, orientation);
+ }
+/***********************End NT35510 Initialization****************************/
+ else
+ { 
 /***********************OTM8009A Initialization********************************/ 
 
   /* Initialize the OTM8009A LCD Display IC Driver (KoD LCD IC Driver)
@@ -485,6 +516,7 @@ uint8_t BSP_LCD_InitEx(LCD_OrientationTypeDef orientation)
   OTM8009A_Init(OTM8009A_FORMAT_RGB888, orientation);
 
 /***********************End OTM8009A Initialization****************************/ 
+ }
 
   return LCD_OK; 
 }
@@ -639,7 +671,7 @@ uint8_t BSP_LCD_HDMIInitEx(uint8_t format)
 
   HAL_LTDC_DeInit(&(hltdc_discovery));
 
-  /* Timing Configuration */    
+  /* Timing Configuration */
   hltdc_discovery.Init.HorizontalSync = (HDMI_Format[format].HSYNC - 1);
   hltdc_discovery.Init.AccumulatedHBP = (HDMI_Format[format].HSYNC + HDMI_Format[format].HBP - 1);
   hltdc_discovery.Init.AccumulatedActiveW = (HDMI_Format[format].HACT + HDMI_Format[format].HSYNC + HDMI_Format[format].HBP - 1);
@@ -661,7 +693,7 @@ uint8_t BSP_LCD_HDMIInitEx(uint8_t format)
   hltdc_discovery.Init.PCPolarity = LTDC_PCPOLARITY_IPC;
 
   /* Initialize & Start the LTDC */  
-  HAL_LTDC_Init(&hltdc_discovery);     
+  HAL_LTDC_Init(&hltdc_discovery);
 
 #if !defined(DATA_IN_ExtSDRAM)
   /* Initialize the SDRAM */
@@ -1599,7 +1631,7 @@ void BSP_LCD_SetBrightness(uint8_t BrightnessValue)
   {
     /* Send Display on DCS command to display */
     HAL_DSI_ShortWrite(&hdsi_discovery, 
-                       LCD_OTM8009A_ID, 
+                       LCD_Driver_ID, 
                        DSI_DCS_SHORT_PKT_WRITE_P1, 
                        OTM8009A_CMD_WRDISBV, (uint16_t)(BrightnessValue * 255)/100);
   }  
@@ -1616,12 +1648,32 @@ void DSI_IO_WriteCmd(uint32_t NbrParams, uint8_t *pParams)
 {
   if(NbrParams <= 1)
   {
-   HAL_DSI_ShortWrite(&hdsi_discovery, LCD_OTM8009A_ID, DSI_DCS_SHORT_PKT_WRITE_P1, pParams[0], pParams[1]); 
+   HAL_DSI_ShortWrite(&hdsi_discovery, LCD_Driver_ID, DSI_DCS_SHORT_PKT_WRITE_P1, pParams[0], pParams[1]); 
   }
   else
   {
-   HAL_DSI_LongWrite(&hdsi_discovery,  LCD_OTM8009A_ID, DSI_DCS_LONG_PKT_WRITE, NbrParams, pParams[NbrParams], pParams); 
+   HAL_DSI_LongWrite(&hdsi_discovery,  LCD_Driver_ID, DSI_DCS_LONG_PKT_WRITE, NbrParams, pParams[NbrParams], pParams); 
   } 
+}
+
+/**
+  * @brief  Generic read command
+  * @param  LCD_ID Virtual channel ID
+  * @param  Reg Register to be read
+  * @param  pData pointer to a buffer to store the payload of a read back operation.
+  * @param  Size  Data size to be read (in byte).
+  * @retval BSP status
+  */
+int32_t DSI_IO_ReadCmd(uint32_t Reg, uint8_t *pData, uint32_t Size)
+{
+  int32_t ret = LCD_ERROR;
+  
+  if(HAL_DSI_Read(&hdsi_discovery, LCD_Driver_ID, pData, Size, DSI_DCS_SHORT_PKT_READ, Reg, pData)== HAL_OK)
+  {
+    ret = LCD_OK;
+  }
+
+  return ret;
 }
 
 /**
@@ -1937,8 +1989,34 @@ static void LL_ConvertLineToARGB8888(void *pSrc, void *pDst, uint32_t xSize, uin
 }
 
 /**
-  * @}
-  */
+  * @brief  Check if the component ID is correct.
+  * @param  Lcd_type Driver Type Control NT35510 or OTM8009A
+  */ 
+static LCD_Driver_t Driver_Type(LCD_Driver_t Lcd_type)
+{
+  uint16_t read_id;
+  /* Read the NT35510 ID */
+  read_id = NT35510_ReadID();
+  if(read_id == NT35510_ID)
+  {
+    Lcd_type= LCD_CTRL_NT35510;
+  }
+  else 
+  {
+    /* Read the OTM8009A ID */
+    read_id = OTM8009A_ReadID();
+    if(read_id == OTM8009A_ID)
+    {
+      Lcd_type= LCD_CTRL_OTM8009A;
+    }
+    else
+    {
+      Lcd_type= LCD_CTRL_NONE;
+    }
+  }
+
+  return Lcd_type;
+}
 
 /**
   * @}
@@ -1952,4 +2030,7 @@ static void LL_ConvertLineToARGB8888(void *pSrc, void *pDst, uint32_t xSize, uin
   * @}
   */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+/**
+  * @}
+  */
+

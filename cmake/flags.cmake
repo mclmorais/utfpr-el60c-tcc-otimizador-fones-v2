@@ -50,7 +50,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/Utilities/Fonts"
     "${CMAKE_CURRENT_SOURCE_DIR}/Drivers/CMSIS/Include"
     "${CMAKE_CURRENT_SOURCE_DIR}/Drivers/CMSIS/Device/ST/STM32F7xx/Include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Drivers/BSP/STM32F769I-Discovery/Inc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Drivers/BSP/STM32F769I-Discovery"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/USART/Inc"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/Persistence/Inc"
 )

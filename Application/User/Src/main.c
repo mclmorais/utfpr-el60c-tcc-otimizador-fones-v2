@@ -31,10 +31,6 @@ static void SystemClock_Config(void);
 static void CPU_CACHE_Enable(void);
 static void USB_Init(void);
 
-// external variables ----------------------------------------------------------
-extern USBD_AUDIO_InterfaceCallbacksfTypeDef audio_class_interface;
-extern CircleButtonTypeDef circleButtons[];
-
 // private functions -----------------------------------------------------------
 
 /**

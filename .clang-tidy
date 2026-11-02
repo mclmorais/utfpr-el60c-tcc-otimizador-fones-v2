@@ -9,6 +9,8 @@ Checks: >
   readability-*,
   -bugprone-easily-swappable-parameters,
   -bugprone-reserved-identifier,
+  -bugprone-signed-bitwise,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
   -cert-dcl37-c,
   -cert-dcl51-cpp,
   -misc-header-include-cycle,

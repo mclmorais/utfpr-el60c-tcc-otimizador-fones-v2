@@ -24,6 +24,8 @@
 #define NUMBER_OF_CIRCLE_BUTTONS 1
 #define NUMBER_OF_SLIDER_BUTTONS 8
 
+#define LCD_COLOR_UTFPRYELLOW ((uint32_t)0xFFF6C500)
+
 // typedefs ----------------------------------------------------------
 typedef struct CircleButton {
   uint16_t x;
