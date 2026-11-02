@@ -30,10 +30,6 @@ extern PCD_HandleTypeDef hpcd;
 /* SAI handler declared in "stm32f769i_discovery_audio.c" file */
 extern SAI_HandleTypeDef haudio_out_sai;
 
-#if USE_AUDIO_TIMER_VOLUME_CTRL
-extern TIM_HandleTypeDef    TimHandle;
-#endif /* USE_AUDIO_TIMER_VOLUME_CTRL */
-
 extern DFSDM_Filter_HandleTypeDef       hAudioInTopLeftFilter;
 extern DFSDM_Filter_HandleTypeDef       hAudioInTopRightFilter;
 /* Private function prototypes -----------------------------------------------*/
@@ -165,18 +161,6 @@ void OTG_HS_IRQHandler(void)
 {
   HAL_PCD_IRQHandler(&hpcd);
 }
-
-#if USE_AUDIO_TIMER_VOLUME_CTRL
-/**
-  * @brief  This function handlestt TIM interrupt request.
-  * @param  None
-  * @retval None
-  */
-void TIM_VolumeChangeIRQHandler(void)
-{
-  HAL_TIM_IRQHandler(&TimHandle);
-}
-#endif /* USE_AUDIO_TIMER_VOLUME_CTRL */
 
 /**
   * @brief This function handles DMA2 Stream 4 interrupt request.

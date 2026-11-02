@@ -51,17 +51,6 @@
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
-/* User can use this section to tailor TIM_VolumeChange instance used and associated
-   resources */
-/* Definition for TIM_VolumeChange clock resources */
-#define TIM_VolumeChange                           TIM3
-#define TIM_VolumeChangeCLK_ENABLE()              __HAL_RCC_TIM3_CLK_ENABLE()
-
-
-/* Definition for TIM_VolumeChange's NVIC */
-#define TIM_VolumeChangeIRQn                      TIM3_IRQn
-#define TIM_VolumeChangeIRQHandler                TIM3_IRQHandler
-
 /* Exported functions ------------------------------------------------------- */
 
 #endif /* __MAIN_H */

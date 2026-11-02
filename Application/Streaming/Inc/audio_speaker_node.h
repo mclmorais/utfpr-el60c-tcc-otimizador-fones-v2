@@ -39,14 +39,6 @@
 #define VOLUME_SPEAKER_DEFAULT_DB_256   0       /* 0 db*/ 
 #define VOLUME_SPEAKER_MAX_DB_256       1536    /* 6db == 6*256 = 1536*/
 #define VOLUME_SPEAKER_MIN_DB_256       -6400   /* -25db == -25*256 = -6400*/
-#if USE_AUDIO_TIMER_VOLUME_CTRL 
-/*  SPEAKER_CMD_CHANGE_VOLUM signals to the Timer's interrupt which responsible of volume change that a volume value change is required */
-#define SPEAKER_CMD_CHANGE_VOLUME  0x10
-/*  SPEAKER_CMD_MUTE_UNMUTE  signals to the Timer's interrupt, which responsible of volume change, that a mute state change is required */
-#define SPEAKER_CMD_MUTE_UNMUTE    0x20
-/*  SPEAKER_CMD_MUTE_FIRST  signals to the Timer's interrupt, which responsible of volume change, that it has to apply mute change then volume change */
-#define SPEAKER_CMD_MUTE_FIRST     0x40
-#endif /* USE_AUDIO_TIMER_VOLUME_CTRL */
 
 #ifdef USE_AUDIO_SPEAKER_DUMMY
 #define  AUDIO_SpeakerInit AUDIO_SPEAKER_DUMMY_Init
@@ -90,6 +82,7 @@ AUDIO_SpeakerNode_t;
  int8_t  AUDIO_SpeakerInit(AUDIO_Description_t* audio_description,
                            AUDIO_Session_t* session_handle,
                            uint32_t node_handle);
+void AUDIO_SpeakerApplyCodecRequests(void);
 #ifdef __cplusplus
 }
 #endif
