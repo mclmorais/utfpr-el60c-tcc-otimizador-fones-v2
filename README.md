@@ -330,7 +330,10 @@ tools/lint.py tidy
    | Tema claro | ![Preset Padrão, tema claro](docs/capturas/virt-preset-padrao-claro.png) | ![Preset Chu Moy, tema claro, tela girada em 180°](docs/capturas/virt-preset-chu-moy-claro-180.png) |
    | Tema escuro | ![Preset Chu Moy, tema escuro](docs/capturas/virt-preset-chu-moy-escuro.png) | ![Preset Jan Meier, tema escuro, tela girada em 180°](docs/capturas/virt-preset-jan-meier-escuro-180.png) |
 
-   ![Tela inicial com os botões "EQ" e "VIRT", tema escuro](docs/capturas/inicio-escuro.png)
+   | | Tela inicial |
+   | --- | --- |
+   | Tema claro | ![Tela inicial com os botões "EQ" e "VIRT", tema claro, tela girada em 180°](docs/capturas/inicio-claro.png) |
+   | Tema escuro | ![Tela inicial com os botões "EQ" e "VIRT", tema escuro](docs/capturas/inicio-escuro.png) |
 
 5. **Conectar o Fone de Ouvido**:
    - Conecte o fone de ouvido na saída de áudio da placa
