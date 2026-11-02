@@ -5,6 +5,9 @@
 #define FLASH_WHOLE_DB_LAYOUT_TAG 0x31335145
 // Sectors saved before the orientation existed read 0xFFFFFFFF here, which loads as not flipped.
 #define FLASH_FLIP_WORD (EQ_BAND_COUNT + 1)
+// Sectors saved before the brightness existed read 0xFFFFFFFF here, which loads as full brightness.
+#define FLASH_BRIGHTNESS_WORD (EQ_BAND_COUNT + 2)
+#define DEFAULT_BRIGHTNESS 100
 
 static volatile uint32_t* const words = (volatile uint32_t*)FLASH_USER_START_ADDR;
 
@@ -27,7 +30,7 @@ static int16_t ReadSavedGain(uint32_t band)
   return 0;
 }
 
-static void WriteSector(const volatile int16_t* gains, bool isFlipped)
+static void WriteSector(const volatile int16_t* gains, DisplaySettings display)
 {
   // In single-bank mode (nDBANK=1) the sector number of FLASH_USER_SECTOR is reserved, so the erase would hit an unknown region.
   if(FLASH->OPTCR & FLASH_OPTCR_nDBANK)
@@ -47,22 +50,23 @@ static void WriteSector(const volatile int16_t* gains, bool isFlipped)
   {
     HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + (i + 1) * 4, (uint32_t)(int32_t)gains[i]);
   }
-  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_FLIP_WORD * 4, isFlipped);
+  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_FLIP_WORD * 4, display.isFlipped);
+  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_BRIGHTNESS_WORD * 4, display.brightness);
   HAL_FLASH_Lock();
 }
 
-void FlashPersistence_Write(bool isFlipped)
+void FlashPersistence_Write(DisplaySettings display)
 {
-  WriteSector(eqGains, isFlipped);
+  WriteSector(eqGains, display);
 }
 
-void FlashPersistence_WriteFlip(bool isFlipped)
+void FlashPersistence_WriteDisplay(DisplaySettings display)
 {
-  // Rewrites the last saved gains, so flipping never saves EQ edits the user has not saved.
+  // Rewrites the last saved gains, so a display change never saves EQ edits the user has not saved.
   int16_t savedGains[EQ_BAND_COUNT];
   for(uint32_t i = 0; i < EQ_BAND_COUNT; i++)
     savedGains[i] = ReadSavedGain(i);
-  WriteSector(savedGains, isFlipped);
+  WriteSector(savedGains, display);
 }
 
 void FlashPersistence_Restore()
@@ -71,7 +75,14 @@ void FlashPersistence_Restore()
     eqGains[i] = ReadSavedGain(i);
 }
 
-bool FlashPersistence_ReadFlip()
+DisplaySettings FlashPersistence_ReadDisplay()
 {
-  return SavedGainScale() != 0 && words[FLASH_FLIP_WORD] == 1;
+  DisplaySettings display = {false, DEFAULT_BRIGHTNESS};
+  if(SavedGainScale() == 0)
+    return display;
+
+  display.isFlipped = words[FLASH_FLIP_WORD] == 1;
+  if(words[FLASH_BRIGHTNESS_WORD] >= 1 && words[FLASH_BRIGHTNESS_WORD] <= 100)
+    display.brightness = words[FLASH_BRIGHTNESS_WORD];
+  return display;
 }

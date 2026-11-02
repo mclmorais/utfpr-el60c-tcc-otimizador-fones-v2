@@ -114,6 +114,11 @@ static void MarkEqEdited(void)
   }
 }
 
+static DisplaySettings CurrentDisplay(void)
+{
+  return (DisplaySettings){flipButton.isActive, lcdBrightness};
+}
+
 void Touchscreen_Init(void)
 {
   initStatus = BSP_TS_Init(BSP_LCD_GetXSize(), BSP_LCD_GetYSize());
@@ -189,7 +194,20 @@ void Touchscreen_ButtonHandler(void)
     {
       isTapLatched = true;
       LCD_SetFlip(!flipButton.isActive);
-      FlashPersistence_WriteFlip(flipButton.isActive);
+      FlashPersistence_WriteDisplay(CurrentDisplay());
+    }
+
+    return;
+  }
+
+  if(touchXPosition > brightnessButton.x && touchXPosition < brightnessButton.x + brightnessButton.width &&
+     touchYPosition > brightnessButton.y && touchYPosition < brightnessButton.y + brightnessButton.height)
+  {
+    if(!isTapLatched)
+    {
+      isTapLatched = true;
+      LCD_CycleBrightness();
+      FlashPersistence_WriteDisplay(CurrentDisplay());
     }
 
     return;
@@ -232,7 +250,7 @@ void Touchscreen_ButtonHandler(void)
           LCD_UpdateRectangleButton(&saveButton);
           LCD_UpdateRectangleButton(&undoButton);
           LCD_UpdateRectangleButton(&resetButton);
-          FlashPersistence_Write(flipButton.isActive);
+          FlashPersistence_Write(CurrentDisplay());
         }
 
         return;
