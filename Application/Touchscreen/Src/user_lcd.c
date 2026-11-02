@@ -327,7 +327,7 @@ static void LCD_DisplayVirtualizerPage(void)
 
   BSP_LCD_SetFont(&Font16);
   BSP_LCD_DisplayStringAt(250, 350, (uint8_t*)"Cada ouvido recebe uma copia abafada", LEFT_MODE);
-  BSP_LCD_DisplayStringAt(250, 370, (uint8_t*)"do canal oposto, como com caixas de som.", LEFT_MODE);
+  BSP_LCD_DisplayStringAt(250, 370, (uint8_t*)"do canal oposto, como com alto-falantes.", LEFT_MODE);
   BSP_LCD_SetFont(&Font24);
 }
 

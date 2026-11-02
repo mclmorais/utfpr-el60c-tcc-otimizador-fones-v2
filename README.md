@@ -13,7 +13,7 @@ O projeto visa reduzir gargalos no processo de entrega de áudio, desde o envio 
 - **Interface Touchscreen**: Permite ajuste visual e interativo dos parâmetros de equalização
 - **Persistência de Configurações**: Salva as configurações de equalização na memória flash
 - **31 Bandas de Equalização**: Equalizador gráfico de 1/3 de oitava, com as frequências centrais da ISO 266, de 20 Hz a 20 kHz
-- **Virtualização**: Crossfeed que tira o som de dentro da cabeça e o faz parecer vindo de caixas de som à frente
+- **Virtualização**: Crossfeed que tira o som de dentro da cabeça e o faz parecer vindo de alto-falantes à frente
 - **Alta Qualidade**: Conversão e amplificação de alta qualidade para melhor fidelidade sonora
 
 ## Hardware
@@ -355,7 +355,7 @@ O sistema utiliza filtros biquad do tipo "peaking equalizer" para cada banda de 
 
 ### Virtualização
 
-No fone, cada ouvido escuta só o seu canal, e o som parece vir de dentro da cabeça. Com caixas de som, cada ouvido escuta também a caixa do outro lado, mais baixa nos graves e quase nada nos agudos, porque a cabeça faz sombra para as frequências altas. Benjamin Bauer propôs em 1961 imitar isso no fone com um circuito que leva a cada ouvido uma cópia filtrada do canal oposto. Essa Técnica é o Crossfeed. O bs2b (Bauer stereophonic-to-binaural DSP), de Boris Mikhaylov, é a versão digital mais usada dessa ideia, e a Virtualização segue o seu projeto.
+No fone, cada ouvido escuta só o seu canal, e o som parece vir de dentro da cabeça. Com alto-falantes, cada ouvido escuta também o alto-falante do outro lado, mais baixo nos graves e quase nada nos agudos, porque a cabeça faz sombra para as frequências altas. Benjamin Bauer propôs em 1961 imitar isso no fone com um circuito que leva a cada ouvido uma cópia filtrada do canal oposto. Essa Técnica é o Crossfeed. O bs2b (Bauer stereophonic-to-binaural DSP), de Boris Mikhaylov, é a versão digital mais usada dessa ideia, e a Virtualização segue o seu projeto.
 
 O canal oposto passa por um passa-baixas de primeira ordem no corte do Preset e chega ao ouvido o nível do Preset abaixo do canal direto nos graves. O canal do mesmo lado passa por um realce de agudos de primeira ordem, que devolve aos agudos o volume que o canal cedeu ao lado oposto nos graves. Um Preset é o par de corte e nível. Existem três, os mesmos que o bs2b publica:
 
