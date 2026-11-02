@@ -161,7 +161,7 @@ void Touchscreen_ButtonHandler(void)
     {
       isTapLatched = true;
       LCD_SetFlip(!flipButton.isActive);
-      FlashPersistence_WriteDisplay(CurrentDisplay());
+      FlashPersistence_WriteSettings(CurrentDisplay());
     }
 
     return;
@@ -174,7 +174,7 @@ void Touchscreen_ButtonHandler(void)
     {
       isTapLatched = true;
       LCD_CycleBrightness();
-      FlashPersistence_WriteDisplay(CurrentDisplay());
+      FlashPersistence_WriteSettings(CurrentDisplay());
     }
 
     return;
@@ -187,7 +187,7 @@ void Touchscreen_ButtonHandler(void)
     {
       isTapLatched = true;
       LCD_SetDarkMode(!darkModeButton.isActive);
-      FlashPersistence_WriteDisplay(CurrentDisplay());
+      FlashPersistence_WriteSettings(CurrentDisplay());
     }
 
     return;
@@ -195,6 +195,20 @@ void Touchscreen_ButtonHandler(void)
 
   if(circleButtons[0].isActive)
   {
+    if(touchXPosition > eqSwitchButton.x && touchXPosition < eqSwitchButton.x + eqSwitchButton.width &&
+       touchYPosition > eqSwitchButton.y && touchYPosition < eqSwitchButton.y + eqSwitchButton.height)
+    {
+      if(!isTapLatched)
+      {
+        isTapLatched = true;
+        eqEnabled = !eqEnabled;
+        LCD_UpdateEqSwitchButton();
+        FlashPersistence_WriteSettings(CurrentDisplay());
+      }
+
+      return;
+    }
+
     if(touchYPosition > previousPageButton.y && touchYPosition < previousPageButton.y + previousPageButton.height)
     {
       int8_t step = 0;

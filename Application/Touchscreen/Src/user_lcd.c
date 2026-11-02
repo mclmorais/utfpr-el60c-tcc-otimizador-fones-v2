@@ -80,6 +80,16 @@ CircleButtonTypeDef circleButtons[] = {
   {150, 440, 30, "Vol", "", false, false, false, 0},
 };
 
+RectangleButton eqSwitchButton = {
+  .x = 20,
+  .y = 200 - 60,
+  .width = 180,
+  .height = 50,
+  .text = "",
+  .isPressed = false,
+  .isActive = false,
+};
+
 RectangleButton saveButton = {
   .x = 20,
   .y = 200,
@@ -279,6 +289,7 @@ void LCD_UpdateState()
     LCD_DisplayEqPage();
 
     // displays option buttons
+    LCD_UpdateEqSwitchButton();
     LCD_UpdateRectangleButton(&saveButton);
     LCD_UpdateRectangleButton(&resetButton);
     LCD_UpdateRectangleButton(&undoButton);
@@ -433,6 +444,13 @@ static void DrawLogo(uint16_t x, uint16_t y)
       BSP_LCD_DrawPixel(x + column, y + row, color);
     }
   }
+}
+
+void LCD_UpdateEqSwitchButton(void)
+{
+  eqSwitchButton.isActive = eqEnabled;
+  eqSwitchButton.text = eqEnabled ? "Ligado" : "Desligado";
+  LCD_UpdateRectangleButton(&eqSwitchButton);
 }
 
 void LCD_UpdateRectangleButton(RectangleButton* button)

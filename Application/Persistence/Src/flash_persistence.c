@@ -10,6 +10,8 @@
 #define DEFAULT_BRIGHTNESS    100
 // Sectors saved before the dark mode existed read 0xFFFFFFFF here, which loads as the light theme.
 #define FLASH_DARK_WORD (EQ_BAND_COUNT + 3)
+// Sectors saved before the Equalizer switch existed read 0xFFFFFFFF here, which loads as on.
+#define FLASH_EQ_ENABLED_WORD (EQ_BAND_COUNT + 4)
 
 static volatile uint32_t* const words = (volatile uint32_t*)FLASH_USER_START_ADDR;
 
@@ -55,6 +57,7 @@ static void WriteSector(const volatile int16_t* gains, DisplaySettings display)
   HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_FLIP_WORD * 4, display.isFlipped);
   HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_BRIGHTNESS_WORD * 4, display.brightness);
   HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_DARK_WORD * 4, display.isDark);
+  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_EQ_ENABLED_WORD * 4, eqEnabled);
   HAL_FLASH_Lock();
 }
 
@@ -63,9 +66,9 @@ void FlashPersistence_Write(DisplaySettings display)
   WriteSector(eqGains, display);
 }
 
-void FlashPersistence_WriteDisplay(DisplaySettings display)
+void FlashPersistence_WriteSettings(DisplaySettings display)
 {
-  // Rewrites the last saved gains, so a display change never saves EQ edits the user has not saved.
+  // Rewrites the last saved gains, so a setting saved on touch never saves EQ edits the user has not saved.
   int16_t savedGains[EQ_BAND_COUNT];
   for(uint32_t i = 0; i < EQ_BAND_COUNT; i++)
     savedGains[i] = ReadSavedGain(i);
@@ -76,6 +79,11 @@ void FlashPersistence_Restore()
 {
   for(uint32_t i = 0; i < EQ_BAND_COUNT; i++)
     eqGains[i] = ReadSavedGain(i);
+}
+
+void FlashPersistence_RestoreModuleSwitches()
+{
+  eqEnabled = SavedGainScale() == 0 || words[FLASH_EQ_ENABLED_WORD] != 0;
 }
 
 DisplaySettings FlashPersistence_ReadDisplay()

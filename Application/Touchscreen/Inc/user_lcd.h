@@ -72,6 +72,7 @@ int8_t LCD_ColumnToBand(uint8_t column);
 void LCD_DisplayEqPage(void);
 void LCD_ChangeEqPage(int8_t step);
 void LCD_UpdateRectangleButton(RectangleButton* button);
+void LCD_UpdateEqSwitchButton(void);
 void LCD_UpdateState();
 void LCD_InitSlider(uint8_t knobIndex);
 void LCD_SetFlip(bool isFlipped);
@@ -81,6 +82,7 @@ void LCD_SetDarkMode(bool isDark);
 
 extern CircleButtonTypeDef circleButtons[];
 extern SliderKnob sliderKnobs[];
+extern RectangleButton eqSwitchButton;
 extern RectangleButton saveButton;
 extern RectangleButton resetButton;
 extern RectangleButton undoButton;

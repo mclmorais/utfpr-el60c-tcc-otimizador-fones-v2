@@ -132,6 +132,8 @@ O sistema implementa:
 - **Armazenamento em Flash**: Configurações de equalização são salvas no setor 12 da flash, o primeiro setor do banco 2 (16 KB, endereço `0x08100000`). A flash fica em modo dual-bank. Assim, apagar esse setor não trava o código que roda do banco 1, e o áudio USB continua durante a gravação
 - **Restauração Automática**: Configurações são restauradas automaticamente na inicialização
 - **Marca de Formato**: A primeira palavra do setor guarda a marca `EQ31`. Os ajustes de 8 bandas salvos por versões antigas do firmware não têm essa marca e são descartados: todas as bandas começam em 0 dB
+- **Palavras do Setor**: depois da marca vêm os 31 ganhos, a rotação, o brilho, o modo escuro e a chave do Equalizador, uma palavra cada. Um setor gravado por um firmware mais antigo tem as palavras novas apagadas (`0xFFFFFFFF`), e cada uma delas mantém o comportamento antigo: tela sem rotação, brilho máximo, tema claro e Equalizador ligado
+- **Salvamento no Toque**: a rotação, o brilho, o modo escuro e a chave do Equalizador são salvos assim que tocados. Esse salvamento regrava os últimos ganhos salvos, nunca os ganhos na tela, então só o botão "Salvar" grava edições de ganho
 
 ## Como Compilar e Executar
 
@@ -215,7 +217,7 @@ As linhas abaixo de `dsp worst case` mostram quanto do orçamento de 1 ms por pa
 
 ### Testar o DSP no PC
 
-O script `tools/dsp_test.py` confere a resposta do equalizador sem a placa. Ele compila as fontes de `Application/DSP/` como biblioteca compartilhada com o compilador C do pacote `ziglang`, passa sinais de teste pela mesma função que o callback USB chama, pacote a pacote, e mede a saída com o numpy. Os ganhos são ajustados pelo mesmo `eqGains` que a tela altera. O DSP lê o contador de ciclos DWT por `cycle_counter.h`, que o firmware implementa em `Application/User/Src/cycle_counter.c`. No PC, o substituto em `tools/dsp_pc/` sempre lê zero. Antes de medir, os testes reinicializam o DSP e descartam um segundo de pacotes.
+O script `tools/dsp_test.py` confere a resposta do equalizador sem a placa. Ele compila as fontes de `Application/DSP/` como biblioteca compartilhada com o compilador C do pacote `ziglang`, passa sinais de teste pela mesma função que o callback USB chama, pacote a pacote, e mede a saída com o numpy. Os ganhos e a chave do Equalizador são ajustados pelos mesmos `eqGains` e `eqEnabled` que a tela altera. O DSP lê o contador de ciclos DWT por `cycle_counter.h`, que o firmware implementa em `Application/User/Src/cycle_counter.c`. No PC, o substituto em `tools/dsp_pc/` sempre lê zero. Antes de medir, os testes reinicializam o DSP e descartam um segundo de pacotes.
 
 Instale as dependências pelo pip. As versões são fixas para que todos meçam com o mesmo compilador:
 
@@ -242,6 +244,8 @@ tools/dsp_test.py --plot build/pc/plots
 Os casos de hoje:
 
 - Com todas as bandas em 0 dB, a saída é igual à entrada bit a bit.
+- Com o Equalizador desligado e as bandas em ±6 dB, a saída é igual à entrada bit a bit.
+- Desligar e religar o Equalizador no pico de um tom de 1 kHz com a banda de 1 kHz em +6 dB não produz um salto entre amostras maior que o do próprio sinal, ligado ou desligado. Depois de religado, a saída é igual à de uma execução que nunca desligou, o que prova que os filtros acompanharam o sinal.
 - Cada banda sozinha em +6 dB mede +6 dB ± 0,1 dB na frequência central e segue a curva do Audio EQ Cookbook, também com tolerância de 0,1 dB, uma oitava para cada lado.
 
 ### Formatar e Analisar o Código
@@ -286,6 +290,14 @@ tools/lint.py tidy
    - Use os botões "<" e ">", à direita do botão "EQ", para trocar de página. Da última página, ">" volta para a primeira
    - Arraste o slider de cada banda para ajustar o ganho, de -15 dB a +15 dB, em passos de 1 dB
    - Toque em "Salvar" para gravar os ajustes na flash, em "Desfazer" para voltar aos ajustes salvos e em "Redefinir" para voltar todas as bandas a 0 dB
+   - O botão acima de "Salvar" liga e desliga o Equalizador. Verde e "Ligado", o som passa pelas Bandas; cinza e "Desligado", o som sai plano e os ganhos continuam na tela, prontos para quando ele for religado. A troca leva 1 ms e não faz clique. A escolha é salva na flash no toque
+
+   | | Ligado | Desligado |
+   |---|---|---|
+   | Tema claro | ![EQ ligado, tema claro, tela girada em 180°](docs/capturas/eq-claro-ligado-180.png) | ![EQ desligado, tema claro](docs/capturas/eq-claro-desligado.png) |
+   | Tema escuro | ![EQ ligado, tema escuro](docs/capturas/eq-escuro-ligado.png) | ![EQ desligado, tema escuro, tela girada em 180°](docs/capturas/eq-escuro-desligado-180.png) |
+
+   As capturas com o botão "180" verde foram feitas com a tela girada. A captura lê a memória de vídeo, que é a mesma nas duas orientações, porque quem gira a imagem é o painel
 
 4. **Conectar o Fone de Ouvido**:
    - Conecte o fone de ouvido na saída de áudio da placa
@@ -311,6 +323,8 @@ O sistema utiliza filtros biquad do tipo "peaking equalizer" para cada banda de 
 ### Arquitetura de Processamento
 
 O callback de USB OUT entrega cada pacote, com quadros estéreo de 16 bits intercalados, a `AudioUserDsp_Process`, que o processa no lugar. Ela separa o pacote em dois blocos `float`, esquerdo e direito, e passa os dois blocos juntos por cada Módulo da Cadeia, em ordem. Só depois do último Módulo ela satura para 16 bits e intercala de volta; nenhum Módulo satura no meio da Cadeia. A Cadeia é uma lista fixa, definida em tempo de compilação em `audio_user_dsp.c`. Hoje ela tem só o Equalizador.
+
+Cada Módulo tem uma chave de liga e desliga, e quem a aplica é a Cadeia. Ela roda o Módulo mesmo desligado, para que o histórico dos filtros acompanhe o sinal, e então guarda ou descarta a saída. No pacote em que a chave muda, a saída passa em linha reta do sinal sem processamento para o processado, ou ao contrário, ao longo do pacote (1 ms), sem clique. Por isso o Módulo custa os mesmos ciclos ligado ou desligado.
 
 ```mermaid
 flowchart LR

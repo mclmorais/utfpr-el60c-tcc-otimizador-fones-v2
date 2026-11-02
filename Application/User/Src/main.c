@@ -57,6 +57,7 @@ int main(void)
 
   BSP_SDRAM_Init();
   FlashPersistence_Restore();
+  FlashPersistence_RestoreModuleSwitches();
   AudioUserDsp_Init();
   USB_Init();
 
