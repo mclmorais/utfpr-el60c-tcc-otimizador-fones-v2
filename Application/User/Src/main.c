@@ -13,8 +13,9 @@ USBD_HandleTypeDef USBD_Device;
 // static int32_t pending_buffer   = -1;
 // static int32_t active_area      = INVALID_AREA;
 // static uint32_t ImageIndex      = 0;
-uint32_t watchdogTimer = 0;
-uint32_t watchdogCounter = 0;
+#define WATCHDOG_TRAIL_STEP_MS 15
+
+static uint32_t watchdogTick = 0;
 uint32_t serialTimer = 0;
 uint32_t touchscreenTimer = 0;
 uint32_t serialSendTimer = 0;
@@ -83,10 +84,10 @@ int main(void)
       touchscreenTimer = 0;
     }
 
-    if(++watchdogTimer > 500)
+    if(HAL_GetTick() - watchdogTick >= WATCHDOG_TRAIL_STEP_MS)
     {
-      LCD_UpdateWatchdog(&watchdogCounter);
-      watchdogTimer = 0;
+      LCD_AdvanceWatchdogTrail();
+      watchdogTick = HAL_GetTick();
     }
   }
 }

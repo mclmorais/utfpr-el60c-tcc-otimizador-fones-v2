@@ -44,6 +44,12 @@
 #define MOON_BITE_OFFSET_Y 5
 #define LOGO_INK_BLUE      24
 #define LOGO_YELLOW        0xFFCF00
+#define TRAIL_THICKNESS    4
+#define TRAIL_SEGMENT      8
+#define TRAIL_LENGTH       24
+#define TRAIL_SEGMENTS     (2 * (WVGA_RES_X + WVGA_RES_Y) / TRAIL_SEGMENT)
+// Font24 leaves its top two rows blank, so the labels' ink starts just under the trail.
+#define EQ_LABEL_Y 2
 
 // private function declarations --------------------------------------
 static void LCD_LayertInit(uint16_t LayerIndex, uint32_t Address);
@@ -160,6 +166,23 @@ RectangleButton darkModeButton = {
 
 static uint8_t eqPage = 0;
 
+typedef struct TrailEdge {
+  uint16_t x;
+  uint16_t y;
+  int16_t stepX;
+  int16_t stepY;
+} TrailEdge;
+
+// Clockwise from the top-left corner. TRAIL_SEGMENT divides both sides, so no segment wraps a corner.
+static const TrailEdge trailEdges[] = {
+  {0,                            0,                            TRAIL_SEGMENT,  0             },
+  {WVGA_RES_X - TRAIL_THICKNESS, 0,                            0,              TRAIL_SEGMENT },
+  {WVGA_RES_X - TRAIL_SEGMENT,   WVGA_RES_Y - TRAIL_THICKNESS, -TRAIL_SEGMENT, 0             },
+  {0,                            WVGA_RES_Y - TRAIL_SEGMENT,   0,              -TRAIL_SEGMENT},
+};
+
+static uint16_t trailHead = 0;
+
 SliderKnob sliderKnobs[] = {
   {200 + 50,  70, 60, 320, 230, 20, 5, 7},
   {200 + 110, 70, 60, 320, 230, 20, 5, 7},
@@ -275,13 +298,14 @@ void LCD_UpdateState()
     // displays background yellow line
     BSP_LCD_SetFont(&Font24);
     BSP_LCD_SetTextColor(LCD_COLOR_UTFPRYELLOW);
-    BSP_LCD_FillRect(0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION, BSP_LCD_GetXSize(), 90);
+    BSP_LCD_FillRect(
+        TRAIL_THICKNESS, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION, BSP_LCD_GetXSize() - 2 * TRAIL_THICKNESS, 90);
 
     // displays background text
     BSP_LCD_SetBackColor(LCD_COLOR_UTFPRYELLOW);
     BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
-    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION + 15, (uint8_t*)"V2.0a", CENTER_MODE);
-    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION + 45, (uint8_t*)"Branch Biquad", CENTER_MODE);
+    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION + 15, (uint8_t*)"V2.1", CENTER_MODE);
+    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION + 45, (uint8_t*)"EQ 31 Bandas", CENTER_MODE);
   }
 
   // circle buttons are always updated
@@ -514,7 +538,8 @@ void LCD_DisplayEqPage(void)
     uint16_t labelWidth = strlen(label) * BSP_LCD_GetFont()->Width;
     BSP_LCD_SetBackColor(theme->background);
     BSP_LCD_SetTextColor(theme->foreground);
-    BSP_LCD_DisplayStringAt(knob->sliderX + (knob->sliderWidth - labelWidth) / 2, 0, (uint8_t*)label, LEFT_MODE);
+    BSP_LCD_DisplayStringAt(
+        knob->sliderX + (knob->sliderWidth - labelWidth) / 2, EQ_LABEL_Y, (uint8_t*)label, LEFT_MODE);
 
     LCD_DisplayStepButton(knob, 1);
     LCD_DisplayStepButton(knob, -1);
@@ -616,14 +641,45 @@ void LCD_UpdateButton(uint8_t buttonIndex, bool isPressed, bool shouldToggleOthe
   LCD_UpdateState();
 }
 
-void LCD_UpdateWatchdog(uint32_t* watchdogCounter)
+static void FillTrailSegment(uint16_t segment, uint32_t color)
 {
-  char text[5];
-  sprintf(text, "%04u", ((unsigned int)*watchdogCounter));
-  BSP_LCD_SetBackColor(theme->background);
-  BSP_LCD_SetTextColor(theme->foreground);
-  BSP_LCD_DisplayStringAt(0, 0, (uint8_t*)text, RIGHT_MODE);
-  *watchdogCounter = *watchdogCounter + 1;
-  if(*watchdogCounter > 9999)
-    *watchdogCounter = 0;
+  const TrailEdge* edge = trailEdges;
+  for(;;)
+  {
+    uint16_t edgeSegments = (edge->stepY == 0 ? WVGA_RES_X : WVGA_RES_Y) / TRAIL_SEGMENT;
+    if(segment < edgeSegments)
+      break;
+    segment -= edgeSegments;
+    edge++;
+  }
+
+  bool isHorizontal = edge->stepY == 0;
+  BSP_LCD_SetTextColor(color);
+  BSP_LCD_FillRect(edge->x + edge->stepX * segment,
+                   edge->y + edge->stepY * segment,
+                   isHorizontal ? TRAIL_SEGMENT : TRAIL_THICKNESS,
+                   isHorizontal ? TRAIL_THICKNESS : TRAIL_SEGMENT);
+}
+
+static uint32_t BlendColor(uint32_t from, uint32_t to, uint32_t weight, uint32_t total)
+{
+  uint32_t color = 0xFF000000;
+  for(uint8_t shift = 0; shift <= 16; shift += 8)
+  {
+    uint32_t channel = (((from >> shift) & 0xFF) * (total - weight) + ((to >> shift) & 0xFF) * weight) / total;
+    color |= channel << shift;
+  }
+  return color;
+}
+
+// The whole trail is repainted every step, so anything that clears the screen leaves no gap for longer than one step.
+void LCD_AdvanceWatchdogTrail(void)
+{
+  trailHead = (trailHead + 1) % TRAIL_SEGMENTS;
+  FillTrailSegment((trailHead + TRAIL_SEGMENTS - TRAIL_LENGTH) % TRAIL_SEGMENTS, theme->background);
+  for(uint16_t i = 0; i < TRAIL_LENGTH; i++)
+  {
+    FillTrailSegment((trailHead + TRAIL_SEGMENTS - i) % TRAIL_SEGMENTS,
+                     BlendColor(LCD_COLOR_UTFPRYELLOW, theme->background, i, TRAIL_LENGTH));
+  }
 }

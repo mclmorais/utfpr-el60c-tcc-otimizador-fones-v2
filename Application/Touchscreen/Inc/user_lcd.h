@@ -62,7 +62,7 @@ typedef struct SliderKnob {
 
 // function prototypes -----------------------------------------------
 void LCD_Init(bool isDark);
-void LCD_UpdateWatchdog(uint32_t* watchdogCounter);
+void LCD_AdvanceWatchdogTrail(void);
 void LCD_UpdateButton(uint8_t buttonIndex, bool isPressed, bool shouldToggleOtherButtons);
 void LCD_DisplayKnob(uint8_t knobIndex, int16_t gain);
 uint16_t LCD_TranslateGainToKnobPosition(uint8_t knobIndex, int16_t gain);
