@@ -3,9 +3,10 @@
 #include <math.h>
 
 const CrossfeedPreset crossfeedPresets[CROSSFEED_PRESET_COUNT] = {
-  {"Padrao",    700, 4.5f},
-  {"Chu Moy",   700, 6.0f},
-  {"Jan Meier", 650, 9.5f},
+  {"Padrao",    700,  4.5f},
+  {"Chu Moy",   700,  6.0f},
+  {"Jan Meier", 650,  9.5f},
+  {"Forte",     1000, 3.0f},
 };
 
 volatile bool virtEnabled = false;

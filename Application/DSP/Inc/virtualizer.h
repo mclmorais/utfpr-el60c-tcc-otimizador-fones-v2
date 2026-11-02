@@ -9,7 +9,7 @@ typedef enum VirtualizerTechnique {
   VIRTUALIZER_CROSSFEED,
 } VirtualizerTechnique;
 
-// A published Crossfeed setting: the opposite channel is lowpassed at cutoffHz
+// A Crossfeed setting (the first three are published, the last is this project's own): the opposite channel is lowpassed at cutoffHz
 // and reaches the ear levelDb below the direct one at low frequencies.
 typedef struct CrossfeedPreset {
   const char* name; // ASCII, the LCD fonts have no accents
@@ -17,7 +17,7 @@ typedef struct CrossfeedPreset {
   float levelDb;
 } CrossfeedPreset;
 
-#define CROSSFEED_PRESET_COUNT 3
+#define CROSSFEED_PRESET_COUNT 4
 
 extern const CrossfeedPreset crossfeedPresets[CROSSFEED_PRESET_COUNT];
 

@@ -92,8 +92,9 @@ class Preset:
     level_db: float
 
 
-# The Presets as published, by the name the firmware gives them (the LCD fonts are ASCII only).
-PUBLISHED_PRESETS = {"Padrao": (700, 4.5), "Chu Moy": (700, 6.0), "Jan Meier": (650, 9.5)}
+# The Presets by the name the firmware gives them (the LCD fonts are ASCII only), in table order.
+# The first three are published by bs2b; Forte is this project's own, so it has no source to check against.
+PRESET_VALUES = {"Padrao": (700, 4.5), "Chu Moy": (700, 6.0), "Jan Meier": (650, 9.5), "Forte": (1000, 3.0)}
 
 
 def preset_count():
@@ -347,15 +348,16 @@ def raise_errors(errors):
 
 
 @case
-def presets_match_published_values(dsp):
+def presets_have_the_documented_values(dsp):
     errors = []
+    if [p.name for p in dsp.presets] != list(PRESET_VALUES):
+        errors.append(f"the Presets are {[p.name for p in dsp.presets]}, expected {list(PRESET_VALUES)} in that order "
+                      f"(the index is stored in flash)")
     for preset in dsp.presets:
-        published = PUBLISHED_PRESETS.get(preset.name)
-        if published is None:
-            errors.append(f"Preset {preset.name!r} is not one of the published {list(PUBLISHED_PRESETS)}")
-        elif (preset.cutoff_hz, preset.level_db) != published:
+        expected = PRESET_VALUES.get(preset.name)
+        if expected is not None and (preset.cutoff_hz, preset.level_db) != expected:
             errors.append(f"Preset {preset.name}: {preset.cutoff_hz:g} Hz, {preset.level_db:g} dB, "
-                          f"published as {published[0]:g} Hz, {published[1]:g} dB")
+                          f"documented as {expected[0]:g} Hz, {expected[1]:g} dB")
     if dsp.presets[0].name != "Padrao":
         errors.append(f"the first Preset, which an erased flash word loads, is {dsp.presets[0].name}, not Padrao")
     raise_errors(errors)
