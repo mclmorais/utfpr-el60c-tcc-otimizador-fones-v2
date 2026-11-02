@@ -254,7 +254,7 @@ Os casos de hoje:
 
 Os casos da Virtualização leem a tabela `crossfeedPresets` do próprio DSP e rodam uma vez para cada Preset, com o Equalizador plano:
 
-- Os Presets da tabela têm o corte e o nível publicados, e o primeiro, que uma palavra apagada da flash carrega, é o Padrão.
+- Os Presets da tabela, na ordem em que a flash os indexa, têm o corte e o nível documentados no README, e o primeiro, que uma palavra apagada da flash carrega, é o Padrão.
 - Um sinal mono mede 0 dB ± 0,1 dB em 20 Hz e fica a 1 dB de 0 dB nas 31 frequências de 20 Hz a 20 kHz.
 - Um impulso só na esquerda aparece na direita filtrado por um passa-baixas. Em 20 Hz, o caminho cruzado fica abaixo do direto pelo nível do Preset (± 0,1 dB). Ele cai 3 dB a até 5% do corte e pelo menos 17 dB uma década acima, onde o caminho direto volta a até 1 dB de 0 dB.
 - Ruído estéreo com os canais trocados sai com os canais trocados, bit a bit.
@@ -315,7 +315,7 @@ tools/lint.py tidy
 
 4. **Ligar a Virtualização**:
    - Toque no botão "VIRT", ao lado do "EQ", para abrir a tela da Virtualização. Abrir uma das telas fecha a outra, e tocar de novo no botão aberto volta à tela inicial
-   - A tela mostra a Técnica (Crossfeed) e três botões de Preset: Padrão, Chu Moy e Jan Meier. Exatamente um fica verde, e o corte e o nível dele aparecem abaixo. Tocar em outro troca o Preset no pacote seguinte, com a música tocando e sem transição gradual, e salva a escolha na flash. Uma placa nova começa no Padrão
+   - A tela mostra a Técnica (Crossfeed) e quatro botões de Preset, em duas fileiras: Padrão, Chu Moy, Jan Meier e Forte. Exatamente um fica verde, e o corte e o nível dele aparecem abaixo. Tocar em outro troca o Preset no pacote seguinte, com a música tocando e sem transição gradual, e salva a escolha na flash. Uma placa nova começa no Padrão
    - O botão no alto da coluna da esquerda liga e desliga a Virtualização. Ligada, o som sai de dentro da cabeça e passa a vir da frente; desligada, cada canal sai só no seu lado. A troca leva 1 ms e não faz clique. A escolha é salva na flash no toque, e uma placa nova começa com a Virtualização desligada
 
    | | Ligada | Desligada |
@@ -323,12 +323,12 @@ tools/lint.py tidy
    | Tema claro | ![Virtualização ligada, tema claro, tela girada em 180°](docs/capturas/virt-claro-ligado-180.png) | ![Virtualização desligada, tema claro, tela girada em 180°](docs/capturas/virt-claro-desligado-180.png) |
    | Tema escuro | ![Virtualização ligada, tema escuro, tela girada em 180°](docs/capturas/virt-escuro-ligado-180.png) | ![Virtualização desligada, tema escuro, tela girada em 180°](docs/capturas/virt-escuro-desligado-180.png) |
 
-   Os três Presets, nos dois temas e nas duas orientações da tela (o botão "180" verde indica a tela girada):
+   Os quatro Presets, nos dois temas e nas duas orientações da tela (o botão "180" verde indica a tela girada):
 
    | | Tela normal | Tela girada em 180° |
    |---|---|---|
    | Tema claro | ![Preset Padrão, tema claro](docs/capturas/virt-preset-padrao-claro.png) | ![Preset Chu Moy, tema claro, tela girada em 180°](docs/capturas/virt-preset-chu-moy-claro-180.png) |
-   | Tema escuro | ![Preset Chu Moy, tema escuro](docs/capturas/virt-preset-chu-moy-escuro.png) | ![Preset Jan Meier, tema escuro, tela girada em 180°](docs/capturas/virt-preset-jan-meier-escuro-180.png) |
+   | Tema escuro | ![Preset Jan Meier, tema escuro](docs/capturas/virt-preset-jan-meier-escuro.png) | ![Preset Forte, tema escuro, tela girada em 180°](docs/capturas/virt-preset-forte-escuro-180.png) |
 
    | | Tela inicial |
    | --- | --- |
@@ -360,15 +360,16 @@ O sistema utiliza filtros biquad do tipo "peaking equalizer" para cada banda de 
 
 No fone, cada ouvido escuta só o seu canal, e o som parece vir de dentro da cabeça. Com alto-falantes, cada ouvido escuta também o alto-falante do outro lado, mais baixo nos graves e quase nada nos agudos, porque a cabeça faz sombra para as frequências altas. Benjamin Bauer propôs em 1961 imitar isso no fone com um circuito que leva a cada ouvido uma cópia filtrada do canal oposto. Essa Técnica é o Crossfeed. O bs2b (Bauer stereophonic-to-binaural DSP), de Boris Mikhaylov, é a versão digital mais usada dessa ideia, e a Virtualização segue o seu projeto.
 
-O canal oposto passa por um passa-baixas de primeira ordem no corte do Preset e chega ao ouvido o nível do Preset abaixo do canal direto nos graves. O canal do mesmo lado passa por um realce de agudos de primeira ordem, que devolve aos agudos o volume que o canal cedeu ao lado oposto nos graves. Um Preset é o par de corte e nível. Existem três, os mesmos que o bs2b publica:
+O canal oposto passa por um passa-baixas de primeira ordem no corte do Preset e chega ao ouvido o nível do Preset abaixo do canal direto nos graves. O canal do mesmo lado passa por um realce de agudos de primeira ordem, que devolve aos agudos o volume que o canal cedeu ao lado oposto nos graves. Um Preset é o par de corte e nível. Existem quatro: os três que o bs2b publica e o Forte, escolha deste projeto:
 
 | Preset | Corte | Nível | Origem | Efeito audível |
 |---|---|---|---|---|
-| Padrão | 700 Hz | 4,5 dB | Padrão do bs2b | O mais leve dos três. Um instrumento só na esquerda fica 4,1 dB mais baixo nos graves do ouvido esquerdo e chega ao direito 8,6 dB abaixo do nível original. Tira o som de dentro da cabeça sem mudar muito o palco |
-| Chu Moy | 700 Hz | 6,0 dB | Circuito de crossfeed de Chu Moy para amplificadores de fone, que o bs2b chama de C.Moy | Mesmo corte, com mais graves cruzados: 3,5 dB abaixo do original no ouvido do mesmo lado e 9,5 dB abaixo no oposto. Mistura os lados um pouco mais que o Padrão |
-| Jan Meier | 650 Hz | 9,5 dB | Crossfeed de Jan Meier, dos amplificadores Meier Audio, que o bs2b chama de J.Meier | O de mistura mais forte: 2,5 dB abaixo do original no ouvido do mesmo lado e 12,0 dB no oposto. Os dois ouvidos ficam mais parecidos nos graves, com o corte um pouco mais baixo |
+| Padrão | 700 Hz | 4,5 dB | Padrão do bs2b | O que mais mistura dos três do bs2b. Um instrumento só na esquerda fica 4,1 dB mais baixo nos graves do ouvido esquerdo e chega ao direito 8,6 dB abaixo do nível original. Tira o som de dentro da cabeça sem mudar muito o palco |
+| Chu Moy | 700 Hz | 6,0 dB | Circuito de crossfeed de Chu Moy para amplificadores de fone, que o bs2b chama de C.Moy | Mesmo corte, com menos graves cruzados: 3,5 dB abaixo do original no ouvido do mesmo lado e 9,5 dB abaixo no oposto. Mistura os lados um pouco menos que o Padrão |
+| Jan Meier | 650 Hz | 9,5 dB | Crossfeed de Jan Meier, dos amplificadores Meier Audio, que o bs2b chama de J.Meier | O que menos mistura: 2,5 dB abaixo do original no ouvido do mesmo lado e 12,0 dB no oposto. Os lados ficam mais separados nos graves, com o corte um pouco mais baixo |
+| Forte | 1000 Hz | 3,0 dB | Escolha deste projeto, para tornar o efeito evidente em gravações comuns. Não é um Preset publicado | O que mais mistura dos quatro: 4,6 dB abaixo do original no ouvido do mesmo lado e 7,6 dB no oposto. O corte mais alto leva o canal oposto a uma faixa maior do espectro. Serve para ouvir a diferença; o gosto de cada um decide se fica |
 
-A coluna "Efeito audível" dá, para um instrumento só em um canal, o nível dos graves nos dois ouvidos em relação ao sinal sem a Virtualização. É o que a fórmula abaixo prevê, e o `tools/dsp_test.py` confere o nível e o corte de cada Preset. Como o canal direto e o cruzado somam 1, um sinal mono sai igual nos três Presets em todas as frequências, e trocar de Preset só muda o que difere entre os canais. O gosto de cada um ainda depende de ouvir na placa.
+A coluna "Efeito audível" dá, para um instrumento só em um canal, o nível dos graves nos dois ouvidos em relação ao sinal sem a Virtualização. É o que a fórmula abaixo prevê, e o `tools/dsp_test.py` confere o nível e o corte de cada Preset (o do Forte contra o valor escolhido, já que não há fonte publicada). Como o canal direto e o cruzado somam 1, um sinal mono sai igual nos quatro Presets em todas as frequências, e trocar de Preset só muda o que difere entre os canais. O gosto de cada um ainda depende de ouvir na placa.
 
 O bs2b escolhe o corte e o ganho do realce de agudos por fórmulas próprias e normaliza o volume nos graves. Com essa escolha, um sinal mono sai 1,8 dB mais baixo nos agudos com o Padrão (medido pelo `tools/dsp_test.py` com o bs2b copiado ao pé da letra), e o ADR 0001 pede o mesmo volume mono com o Módulo ligado ou desligado. Por isso a Virtualização usa o mesmo filtro de realce do bs2b com o corte e o ganho do passa-baixas. Assim o realce é o complemento exato do passa-baixas, e o canal direto e o cruzado somam 1 em todas as frequências:
 
