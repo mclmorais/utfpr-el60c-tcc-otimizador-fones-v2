@@ -7,29 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; COPYRIGHT(c) 2016 STMicroelectronics</center></h2>
+  * Copyright (c) 2016 STMicroelectronics.
+  * All rights reserved.
   *
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -46,9 +29,11 @@
 /* Include LCD component Driver */
 
 /* Include OTM8009A LCD Driver IC driver code */
-#include "otm8009a/otm8009a.h"
+#include "../Components/otm8009a/otm8009a.h"
+/* Include NT35510 LCD Driver IC driver code */
+#include "../Components/nt35510/nt35510.h"
 /* Include ADV7533 HDMI Driver IC driver code */
-#include "adv7533/adv7533.h"
+#include "../Components/adv7533/adv7533.h"
    
 /* Include SDRAM Driver */
 #include "stm32f769i_discovery_sdram.h"
@@ -112,10 +97,13 @@
 #define   LCD_ERROR      0x01
 #define   LCD_TIMEOUT    0x02
 
-/** 
-  * @brief  LCD Display OTM8009A DSI Virtual Channel  ID 
-  */ 
-#define LCD_OTM8009A_ID  ((uint32_t) 0)
+/**
+  * @brief  LCD Display DSI Virtual Channel  ID
+  */
+#define LCD_Driver_ID  ((uint32_t) 0)
+
+/* Legacy Define */
+#define LCD_OTM8009A_ID LCD_Driver_ID
 
 /** 
   * @brief  HDMI ADV7533 DSI Virtual Channel  ID  
@@ -156,8 +144,6 @@
 /** @brief Yellow value in ARGB8888 format
  */
 #define LCD_COLOR_YELLOW        ((uint32_t) 0xFFFFFF00)
-
-#define LCD_COLOR_UTFPRYELLOW   ((uint32_t) 0xFFF6C500)
 
 /** @brief Light Blue value in ARGB8888 format
  */
@@ -238,11 +224,6 @@
 /** @brief Transparent value in ARGB8888 format
  */
 #define LCD_COLOR_TRANSPARENT   ((uint32_t) 0xFF000000)
-
-#define LCD_COLOR_MINT_GREEN    ((uint32_t) 0xFF98FB98)
-#define LCD_COLOR_OLIVE_GREEN   ((uint32_t) 0xFF6B8E23)
-#define LCD_COLOR_MAROON        ((uint32_t) 0xFF800000)
-#define LCD_COLOR_BURGUNDY      ((uint32_t) 0xFF800020)
 
 /**
   * @brief LCD default font
@@ -418,4 +399,3 @@ extern DMA2D_HandleTypeDef hdma2d_discovery;
 
 #endif /* __STM32F769I_DISCOVERY_LCD_H */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
