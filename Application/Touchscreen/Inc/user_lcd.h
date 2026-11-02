@@ -82,6 +82,8 @@ void LCD_UpdateRectangleButton(RectangleButton* button);
 void LCD_UpdateState();
 void LCD_InitSlider(uint8_t knobIndex);
 void LCD_SetFlip(bool isFlipped);
+void LCD_SetBrightness(uint8_t brightness);
+void LCD_CycleBrightness(void);
 
 
 extern CircleButtonTypeDef circleButtons[];
@@ -92,5 +94,7 @@ extern RectangleButton undoButton;
 extern RectangleButton previousPageButton;
 extern RectangleButton nextPageButton;
 extern RectangleButton flipButton;
+extern RectangleButton brightnessButton;
+extern uint8_t lcdBrightness;
 
 #endif // __LCD_H

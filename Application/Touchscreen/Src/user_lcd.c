@@ -44,6 +44,7 @@
 static void     LCD_LayertInit(uint16_t LayerIndex, uint32_t Address);
 static void     Display_StartupScreen(void);
 static uint8_t  CopyImageToLcdFrameBuffer(void *pSrc, void *pDst, uint32_t xSize, uint32_t ySize, uint16_t x, uint16_t y);
+static void     LCD_UpdateBrightnessButton(void);
 
 // variables ----------------------------------------------------------
 // !! THE NUMBER_OF_CIRCLE_BUTTONS DEFINE HAS TO BE UP TO DATE WITH THE NUMBER OF BUTTONS DEFINED HERE
@@ -132,6 +133,22 @@ RectangleButton flipButton = {
   .isActive = false
 };
 
+static const uint8_t brightnessLevels[] = {100, 75, 50, 25};
+static char brightnessText[5];
+uint8_t lcdBrightness = 100;
+
+RectangleButton brightnessButton = {
+  .x = 738,
+  .y = 355,
+  .width = 56,
+  .height = 50,
+  .inactiveColor = LCD_COLOR_LIGHTGRAY,
+  .activeColor = LCD_COLOR_LIGHTGREEN,
+  .text = brightnessText,
+  .isPressed = false,
+  .isActive = false
+};
+
 static uint8_t eqPage = 0;
 
 SliderKnob sliderKnobs[] = {
@@ -171,6 +188,10 @@ void LCD_Init(void)
   BSP_LCD_LayerDefaultInit(0, LCD_FB_START_ADDRESS);
 
   BSP_LCD_Clear(LCD_COLOR_WHITE);
+
+  // The OTM8009A driver turns on content adaptive brightness, which rescales the backlight from the image and would fight LCD_SetBrightness.
+  uint8_t cabcOff[] = {OTM8009A_CMD_WRCABC, 0x00};
+  DSI_IO_WriteCmd(0, cabcOff);
 
   Display_StartupScreen();
 }
@@ -272,6 +293,40 @@ void LCD_UpdateState()
   }
 
   LCD_UpdateRectangleButton(&flipButton);
+  LCD_UpdateBrightnessButton();
+}
+
+static void LCD_UpdateBrightnessButton(void)
+{
+  sprintf(brightnessText, "%u%%", lcdBrightness);
+
+  // Font24 fits only 3 characters in the button, and "100%" needs 4.
+  sFONT* font = BSP_LCD_GetFont();
+  BSP_LCD_SetFont(&Font16);
+  LCD_UpdateRectangleButton(&brightnessButton);
+  BSP_LCD_SetFont(font);
+}
+
+void LCD_SetBrightness(uint8_t brightness)
+{
+  lcdBrightness = brightness;
+  BSP_LCD_SetBrightness(brightness);
+  LCD_UpdateBrightnessButton();
+}
+
+void LCD_CycleBrightness(void)
+{
+  // Steps to the next dimmer level and wraps to the brightest; a saved level between entries steps to the one below it.
+  uint8_t next = brightnessLevels[0];
+  for(uint8_t i = 0; i < sizeof(brightnessLevels); i++)
+  {
+    if(brightnessLevels[i] < lcdBrightness)
+    {
+      next = brightnessLevels[i];
+      break;
+    }
+  }
+  LCD_SetBrightness(next);
 }
 
 void LCD_SetFlip(bool isFlipped)
