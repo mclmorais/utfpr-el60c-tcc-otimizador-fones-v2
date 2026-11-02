@@ -21,6 +21,9 @@
 #include "usb_audio.h"
 #include "audio_usb_nodes.h"
 
+_Static_assert(USB_AUDIO_CONFIG_PLAY_DEF_FREQ == AUDIO_USER_DSP_SAMPLE_RATE,
+               "AudioUserDsp_Process designs its filters for AUDIO_USER_DSP_SAMPLE_RATE");
+
 /* Private macros ------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private defines -----------------------------------------------------------*/

@@ -207,6 +207,37 @@ tools/usb_audio_probe.py
 
 Sem argumento, ele usa o `build/Debug/horoscope.elf`. A linha `idle` mostra o estado antes do tom. Ela já aparece como `STARTED` se outro programa estiver tocando áudio na placa.
 
+### Testar o DSP no PC
+
+O script `tools/dsp_test.py` confere a resposta do equalizador sem a placa. Ele compila as fontes de `Application/DSP/` como biblioteca compartilhada com o compilador C do pacote `ziglang`, passa sinais de teste pela mesma função que o callback USB chama, pacote a pacote, e mede a saída com o numpy. Os ganhos são ajustados pelo mesmo `eqGains` que a tela altera. Antes de medir, os testes reinicializam o DSP e descartam um segundo de pacotes.
+
+Instale as dependências pelo pip. As versões são fixas para que todos meçam com o mesmo compilador:
+
+```bash
+pip install ziglang==0.16.0 numpy==2.5.4
+```
+
+```bash
+tools/dsp_test.py
+```
+
+Cada caso imprime `ok` ou `FAIL` com a resposta que saiu errada (banda, canal, frequência, medido e esperado). Se algum caso falhar, o script termina com código 1. Para rodar só alguns casos, passe parte do nome, como `tools/dsp_test.py cookbook`.
+
+Com o matplotlib instalado, `--plot` salva um PNG de cada resposta medida na pasta indicada:
+
+```bash
+pip install matplotlib==3.11.2
+```
+
+```bash
+tools/dsp_test.py --plot build/pc/plots
+```
+
+Os casos de hoje:
+
+- Com todas as bandas em 0 dB, a saída é igual à entrada bit a bit.
+- Cada banda sozinha em +6 dB mede +6 dB ± 0,1 dB na frequência central e segue a curva do Audio EQ Cookbook, também com tolerância de 0,1 dB, uma oitava para cada lado.
+
 ### Formatar e Analisar o Código
 
 O clang-format formata o código e o clang-tidy procura erros comuns. As regras ficam em `.clang-format` e `.clang-tidy`. As bibliotecas da ST em `Drivers/` e `Utilities/` e os headers de imagem, listados em `.clang-format-ignore`, ficam de fora.

@@ -1,5 +1,4 @@
 #include "audio_user_dsp.h"
-#include "usb_audio.h"
 #include <math.h>
 
 #define PI                     3.14159265358979323846
@@ -64,7 +63,7 @@ static int16_t builtGains[EQ_BAND_COUNT];
 static void AudioUserDsp_BuildBand(uint32_t band, int16_t gain)
 {
   double A = pow(10.0, gain / (40.0 * EQ_GAIN_STEPS_PER_DB));
-  double omega = 2.0 * PI * eqBands[band].frequency / USB_AUDIO_CONFIG_PLAY_DEF_FREQ;
+  double omega = 2.0 * PI * eqBands[band].frequency / AUDIO_USER_DSP_SAMPLE_RATE;
   double alpha = sin(omega) * sinh(log(2) / 2.0 * BAND_BANDWIDTH_OCTAVES * omega / sin(omega));
 
   double a0 = 1.0 + alpha / A;

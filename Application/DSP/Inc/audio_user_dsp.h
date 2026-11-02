@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+// The DSP sources build on the PC for the tests in tools/dsp_test.py, so they
+// own their sample rate instead of including the USB configuration.
+#define AUDIO_USER_DSP_SAMPLE_RATE 48000
+
 #define EQ_BAND_COUNT  31
 #define EQ_GAIN_MIN_DB (-15)
 #define EQ_GAIN_MAX_DB 15
