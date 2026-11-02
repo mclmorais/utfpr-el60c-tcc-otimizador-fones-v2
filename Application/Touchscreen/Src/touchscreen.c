@@ -78,6 +78,14 @@ uint32_t xOffset = 150;
 #define STEP_REPEAT_DELAY_MS 500
 #define STEP_REPEAT_INTERVAL_MS 100
 static uint32_t nextStepRepeatTick;
+// The controller can report a touch nobody made, so a touch counts only after it
+// lasts TOUCH_PRESS_MS, and a lift only after no touch is seen for TOUCH_RELEASE_MS.
+// The controller reports about every 9 ms and the quickest taps measured last ~28 ms,
+// so TOUCH_PRESS_MS rejects one or two stray reports and still accepts those taps.
+#define TOUCH_PRESS_MS 20
+#define TOUCH_RELEASE_MS 50
+static uint32_t lastTouchedTick;
+static uint32_t lastReleasedTick;
 
 // An edit makes the last Save, Undo or Reset no longer describe the gains on screen.
 static void MarkEqEdited(void)
@@ -119,8 +127,14 @@ void Touchscreen_ButtonHandler(void)
 
   initStatus = BSP_TS_GetState(&TS_State);
 
+  uint32_t now = HAL_GetTick();
+
   if(!TS_State.touchDetected)
   {
+    lastReleasedTick = now;
+    if(now - lastTouchedTick < TOUCH_RELEASE_MS)
+      return;
+
     isTapLatched = false;
     for(uint8_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++) 
     {
@@ -129,6 +143,10 @@ void Touchscreen_ButtonHandler(void)
     }
     return;
   }
+
+  lastTouchedTick = now;
+  if(now - lastReleasedTick < TOUCH_PRESS_MS)
+    return;
 
   touchXPosition = TS_State.touchX[0];
   touchYPosition = TS_State.touchY[0];
@@ -267,7 +285,6 @@ void Touchscreen_ButtonHandler(void)
       int8_t step = LCD_StepButtonAt(i, touchXPosition, touchYPosition);
       if(step != 0)
       {
-        uint32_t now = HAL_GetTick();
         bool isFirstTap = !isTapLatched;
         if(isFirstTap || (int32_t)(now - nextStepRepeatTick) >= 0)
         {
