@@ -304,8 +304,8 @@ void LCD_UpdateState()
     // displays background text
     BSP_LCD_SetBackColor(LCD_COLOR_UTFPRYELLOW);
     BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
-    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION + 15, (uint8_t*)"V2.0a", CENTER_MODE);
-    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION + 45, (uint8_t*)"Branch Biquad", CENTER_MODE);
+    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION + 15, (uint8_t*)"V2.1", CENTER_MODE);
+    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION + 45, (uint8_t*)"EQ 31 Bandas", CENTER_MODE);
   }
 
   // circle buttons are always updated
