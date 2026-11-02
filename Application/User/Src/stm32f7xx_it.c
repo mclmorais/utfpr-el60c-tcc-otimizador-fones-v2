@@ -30,8 +30,8 @@ extern PCD_HandleTypeDef hpcd;
 /* SAI handler declared in "stm32f769i_discovery_audio.c" file */
 extern SAI_HandleTypeDef haudio_out_sai;
 
-extern DFSDM_Filter_HandleTypeDef       hAudioInTopLeftFilter;
-extern DFSDM_Filter_HandleTypeDef       hAudioInTopRightFilter;
+extern DFSDM_Filter_HandleTypeDef hAudioInTopLeftFilter;
+extern DFSDM_Filter_HandleTypeDef hAudioInTopRightFilter;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -45,8 +45,7 @@ extern DFSDM_Filter_HandleTypeDef       hAudioInTopRightFilter;
   * @retval None
   */
 void NMI_Handler(void)
-{
-}
+{}
 
 /**
   * @brief  This function handles Hard Fault exception.
@@ -56,7 +55,7 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* Go to infinite loop when Hard Fault exception occurs */
-  while (1)
+  while(1)
   {
   }
 }
@@ -69,7 +68,7 @@ void HardFault_Handler(void)
 void MemManage_Handler(void)
 {
   /* Go to infinite loop when Memory Manage exception occurs */
-  while (1)
+  while(1)
   {
   }
 }
@@ -82,7 +81,7 @@ void MemManage_Handler(void)
 void BusFault_Handler(void)
 {
   /* Go to infinite loop when Bus Fault exception occurs */
-  while (1)
+  while(1)
   {
   }
 }
@@ -95,7 +94,7 @@ void BusFault_Handler(void)
 void UsageFault_Handler(void)
 {
   /* Go to infinite loop when Usage Fault exception occurs */
-  while (1)
+  while(1)
   {
   }
 }
@@ -106,8 +105,7 @@ void UsageFault_Handler(void)
   * @retval None
   */
 void SVC_Handler(void)
-{
-}
+{}
 
 /**
   * @brief  This function handles Debug Monitor exception.
@@ -115,8 +113,7 @@ void SVC_Handler(void)
   * @retval None
   */
 void DebugMon_Handler(void)
-{
-}
+{}
 
 /**
   * @brief  This function handles PendSVC exception.
@@ -124,8 +121,7 @@ void DebugMon_Handler(void)
   * @retval None
   */
 void PendSV_Handler(void)
-{
-}
+{}
 
 /**
   * @brief  This function handles SysTick Handler.

@@ -16,7 +16,7 @@
   *
   ******************************************************************************
   */
-  
+
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __MAIN_H
 #define __MAIN_H
@@ -33,19 +33,27 @@
 #include "stm32f769i_discovery_ts.h"
 #include "touchscreen.h"
 
-
 #ifdef USE_FULL_ASSERT
 /* Assert activated */
-#define BSP_TEST_APPLI_ASSERT(__error_condition__)    do { if(__error_condition__) \
-                                                           {  while(1);  \
-                                                           } \
-                                                          } while(0)
+#define BSP_TEST_APPLI_ASSERT(__error_condition__) \
+  do                                               \
+  {                                                \
+    if(__error_condition__)                        \
+    {                                              \
+      while(1)                                     \
+        ;                                          \
+    }                                              \
+  } while(0)
 #else
 /* Assert not activated : macro has no effect */
-#define BSP_TEST_APPLI_ASSERT(__error_condition__)    do { if(__error_condition__) \
-                                                           {  ;  \
-                                                           } \
-                                                         } while(0)
+#define BSP_TEST_APPLI_ASSERT(__error_condition__) \
+  do                                               \
+  {                                                \
+    if(__error_condition__)                        \
+    {                                              \
+      ;                                            \
+    }                                              \
+  } while(0)
 #endif /* USE_FULL_ASSERT */
 
 /* Exported types ------------------------------------------------------------*/

@@ -31,11 +31,11 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define  CIRCLE_RADIUS        40
-#define  LINE_LENGHT          30
+#define CIRCLE_RADIUS 40
+#define LINE_LENGHT   30
 /* Private macro -------------------------------------------------------------*/
-#define  CIRCLE_XPOS(i)       ((i * BSP_LCD_GetXSize()) / 5)
-#define  CIRCLE_YPOS(i)       (BSP_LCD_GetYSize() - CIRCLE_RADIUS - 40)
+#define CIRCLE_XPOS(i) ((i * BSP_LCD_GetXSize()) / 5)
+#define CIRCLE_YPOS(i) (BSP_LCD_GetYSize() - CIRCLE_RADIUS - 40)
 
 uint32_t sampleCounter = 20;
 uint8_t togglePaint = 1;
@@ -44,8 +44,7 @@ uint32_t initStatus = TS_ERROR;
 
 /* Private Structures and Enumerations ------------------------------------------------------------*/
 /* Possible allowed indexes of touchscreen demo */
-typedef enum
-{
+typedef enum {
   TOUCHSCREEN_DEMO_1 = 1,
   TOUCHSCREEN_DEMO_2 = 2,
   TOUCHSCREEN_DEMO_3 = 3,
@@ -62,7 +61,7 @@ TS_StateTypeDef TS_State = {0};
 
 /* Private function prototypes -----------------------------------------------*/
 //static void     Touchscreen_SetHint_Demo(TouchScreenDemoTypeDef demoIndex);
-void                    Touchscreen_DrawBackground_Circles(uint8_t state);
+void Touchscreen_DrawBackground_Circles(uint8_t state);
 #if (TS_MULTI_TOUCH_SUPPORTED == 1)
 static uint32_t Touchscreen_Handle_NewTouch(void);
 #endif // TS_MULTI_TOUCH_SUPPORTED == 1
@@ -75,7 +74,7 @@ static bool isTapLatched = false;
 #define CIRCLE_BUTTON_DEBOUNCE_TIMER 100
 uint32_t yOffset = 0;
 uint32_t xOffset = 150;
-#define STEP_REPEAT_DELAY_MS 500
+#define STEP_REPEAT_DELAY_MS    500
 #define STEP_REPEAT_INTERVAL_MS 100
 static uint32_t nextStepRepeatTick;
 // The controller can report a touch nobody made, so a touch counts only after it
@@ -84,7 +83,7 @@ static uint32_t nextStepRepeatTick;
 // so TOUCH_PRESS_MS rejects one or two stray reports and still accepts those taps.
 // The press is timed from its own first reading, so a stray report right after the
 // loop stalls (codec init holds it ~300 ms) still has to last TOUCH_PRESS_MS.
-#define TOUCH_PRESS_MS 20
+#define TOUCH_PRESS_MS   20
 #define TOUCH_RELEASE_MS 50
 static uint32_t lastTouchedTick;
 static uint32_t touchStartTick;
@@ -127,8 +126,8 @@ void Touchscreen_Init(void)
 void Touchscreen_ButtonHandler(void)
 {
   uint16_t touchXPosition, touchYPosition;
-//	uint8_t state = 0;
-//	uint8_t exitTsUseCase = 0;
+  //	uint8_t state = 0;
+  //	uint8_t exitTsUseCase = 0;
 
   if(initStatus != TS_OK)
     return;
@@ -144,7 +143,7 @@ void Touchscreen_ButtonHandler(void)
       return;
 
     isTapLatched = false;
-    for(uint8_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++) 
+    for(uint8_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++)
     {
       if(++circleButtons[i].debounceTimer > CIRCLE_BUTTON_DEBOUNCE_TIMER)
         circleButtons[i].debounceTimer = CIRCLE_BUTTON_DEBOUNCE_TIMER;
@@ -170,13 +169,15 @@ void Touchscreen_ButtonHandler(void)
     touchYPosition = BSP_LCD_GetYSize() - 1 - touchYPosition;
   }
 
-  for(uint8_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++) 
+  for(uint8_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++)
   {
-    if((touchYPosition > circleButtons[i].y - circleButtons[i].radius) && (touchYPosition < circleButtons[i].y + circleButtons[i].radius))
+    if((touchYPosition > circleButtons[i].y - circleButtons[i].radius) &&
+       (touchYPosition < circleButtons[i].y + circleButtons[i].radius))
     {
-      if((touchXPosition > circleButtons[i].x - circleButtons[i].radius) && (touchXPosition < circleButtons[i].x + circleButtons[i].radius))
+      if((touchXPosition > circleButtons[i].x - circleButtons[i].radius) &&
+         (touchXPosition < circleButtons[i].x + circleButtons[i].radius))
       {
-        
+
         if(circleButtons[i].debounceTimer == CIRCLE_BUTTON_DEBOUNCE_TIMER)
           LCD_UpdateButton(i, !circleButtons[i].isPressed, false);
 
@@ -227,7 +228,7 @@ void Touchscreen_ButtonHandler(void)
   }
 
   if(circleButtons[0].isActive)
-  {  
+  {
     if(touchYPosition > previousPageButton.y && touchYPosition < previousPageButton.y + previousPageButton.height)
     {
       int8_t step = 0;
@@ -268,7 +269,7 @@ void Touchscreen_ButtonHandler(void)
 
         return;
       }
-    }  
+    }
     else if(touchYPosition > undoButton.y && touchYPosition < undoButton.y + undoButton.height)
     {
       if(touchXPosition > undoButton.x && touchXPosition < saveButton.x + undoButton.width)
@@ -341,9 +342,11 @@ void Touchscreen_ButtonHandler(void)
         return;
       }
 
-      if((touchYPosition > sliderKnobs[i].sliderY + 10) && (touchYPosition < sliderKnobs[i].sliderY + sliderKnobs[i].sliderHeight - 10))
+      if((touchYPosition > sliderKnobs[i].sliderY + 10) &&
+         (touchYPosition < sliderKnobs[i].sliderY + sliderKnobs[i].sliderHeight - 10))
       {
-        if((touchXPosition > sliderKnobs[i].sliderX) && (touchXPosition < sliderKnobs[i].sliderX + sliderKnobs[i].sliderWidth))
+        if((touchXPosition > sliderKnobs[i].sliderX) &&
+           (touchXPosition < sliderKnobs[i].sliderX + sliderKnobs[i].sliderWidth))
         {
           if(++sliderKnobs[i].debounceCount >= sliderKnobs[i].debouceLimit)
           {
@@ -358,10 +361,7 @@ void Touchscreen_ButtonHandler(void)
       }
     }
   }
-
 }
-
-
 
 /**
  * @brief  Touchscreen Demo1 : test touchscreen calibration and single touch in polling mode
@@ -376,7 +376,7 @@ void Touchscreen_demo1(void)
   uint32_t ts_status = TS_OK;
 
   /* Reset touch data information */
-//  BSP_TEST_APPLI_ASSERT(BSP_TS_ResetTouchData(&TS_State));
+  //  BSP_TEST_APPLI_ASSERT(BSP_TS_ResetTouchData(&TS_State));
 
   /* Touchscreen initialization */
   ts_status = BSP_TS_Init(BSP_LCD_GetXSize(), BSP_LCD_GetYSize());
@@ -387,16 +387,15 @@ void Touchscreen_demo1(void)
     // Touchscreen_SetHint_Demo(TOUCHSCREEN_DEMO_1);
     // Touchscreen_DrawBackground_Circles(state);
 
-    while (exitTsUseCase == 0)
+    while(exitTsUseCase == 0)
     {
       char desc[50];
       // // BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()/2, (uint8_t *)desc, CENTER_MODE);
       // BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
 
-
       if(sampleCounter < 10)
       {
-        BSP_LCD_DisplayStringAt(0, yOffset, (uint8_t *)desc, CENTER_MODE);
+        BSP_LCD_DisplayStringAt(0, yOffset, (uint8_t*)desc, CENTER_MODE);
         yOffset += 18;
         // if(yOffset > BSP_LCD_GetYSize())
         // {
@@ -408,10 +407,9 @@ void Touchscreen_demo1(void)
         // 	xOffset = 150;
 
         sampleCounter++;
-
       }
 
-      if (ts_status == TS_OK)
+      if(ts_status == TS_OK)
       {
         /* Check in polling mode in touch screen the touch status and coordinates */
         /* of touches if touch occurred                                           */
@@ -425,13 +423,11 @@ void Touchscreen_demo1(void)
           x1 = TS_State.touchX[0];
           y1 = TS_State.touchY[0];
 
-          if ((y1 > (CIRCLE_YPOS(1) - CIRCLE_RADIUS)) &&
-              (y1 < (CIRCLE_YPOS(1) + CIRCLE_RADIUS)))
+          if((y1 > (CIRCLE_YPOS(1) - CIRCLE_RADIUS)) && (y1 < (CIRCLE_YPOS(1) + CIRCLE_RADIUS)))
           {
-            if ((x1 > (CIRCLE_XPOS(1) - CIRCLE_RADIUS)) &&
-                (x1 < (CIRCLE_XPOS(1) + CIRCLE_RADIUS)))
+            if((x1 > (CIRCLE_XPOS(1) - CIRCLE_RADIUS)) && (x1 < (CIRCLE_XPOS(1) + CIRCLE_RADIUS)))
             {
-              if ((state & 1) == 0)
+              if((state & 1) == 0)
               {
                 Touchscreen_DrawBackground_Circles(state);
 
@@ -441,10 +437,9 @@ void Touchscreen_demo1(void)
                 state = 1;
               }
             }
-            if ((x1 > (CIRCLE_XPOS(2) - CIRCLE_RADIUS)) &&
-                (x1 < (CIRCLE_XPOS(2) + CIRCLE_RADIUS)))
+            if((x1 > (CIRCLE_XPOS(2) - CIRCLE_RADIUS)) && (x1 < (CIRCLE_XPOS(2) + CIRCLE_RADIUS)))
             {
-              if ((state & 2) == 0)
+              if((state & 2) == 0)
               {
                 Touchscreen_DrawBackground_Circles(state);
                 BSP_LCD_SetTextColor(LCD_COLOR_RED);
@@ -453,10 +448,9 @@ void Touchscreen_demo1(void)
               }
             }
 
-            if ((x1 > (CIRCLE_XPOS(3) - CIRCLE_RADIUS)) &&
-                (x1 < (CIRCLE_XPOS(3) + CIRCLE_RADIUS)))
+            if((x1 > (CIRCLE_XPOS(3) - CIRCLE_RADIUS)) && (x1 < (CIRCLE_XPOS(3) + CIRCLE_RADIUS)))
             {
-              if ((state & 4) == 0)
+              if((state & 4) == 0)
               {
                 Touchscreen_DrawBackground_Circles(state);
                 BSP_LCD_SetTextColor(LCD_COLOR_YELLOW);
@@ -465,10 +459,9 @@ void Touchscreen_demo1(void)
               }
             }
 
-            if ((x1 > (CIRCLE_XPOS(4) - CIRCLE_RADIUS)) &&
-                (x1 < (CIRCLE_XPOS(4) + CIRCLE_RADIUS)))
+            if((x1 > (CIRCLE_XPOS(4) - CIRCLE_RADIUS)) && (x1 < (CIRCLE_XPOS(4) + CIRCLE_RADIUS)))
             {
-              if ((state & 8) == 0)
+              if((state & 8) == 0)
               {
                 Touchscreen_DrawBackground_Circles(state);
                 BSP_LCD_SetTextColor(LCD_COLOR_GREEN);
@@ -484,7 +477,7 @@ void Touchscreen_demo1(void)
 
       /* Wait for a key button press to switch to next test case of BSP validation application */
       /* Otherwise stay in the test */
-//      exitTsUseCase = CheckForUserInput();
+      //      exitTsUseCase = CheckForUserInput();
 
       HAL_Delay(20);
 
@@ -515,7 +508,7 @@ void Touchscreen_demo2(void)
     /* Display touch screen demo2 description */
     Touchscreen_SetHint_Demo(TOUCHSCREEN_DEMO_2);
 
-    while (exitTsUseCase == 0)
+    while(exitTsUseCase == 0)
     {
       Touchscreen_Handle_NewTouch();
 
@@ -545,11 +538,30 @@ static uint32_t Touchscreen_Handle_NewTouch(void)
   uint16_t y2 = 0;
   uint32_t drawTouch1 = 0; /* activate/deactivate draw of footprint of touch 1 */
   uint32_t drawTouch2 = 0; /* activate/deactivate draw of footprint of touch 2 */
-  uint32_t colors[24] = {LCD_COLOR_BLUE, LCD_COLOR_GREEN, LCD_COLOR_RED, LCD_COLOR_CYAN, LCD_COLOR_MAGENTA, LCD_COLOR_YELLOW,
-                   LCD_COLOR_LIGHTBLUE, LCD_COLOR_LIGHTGREEN, LCD_COLOR_LIGHTRED, LCD_COLOR_LIGHTCYAN, LCD_COLOR_LIGHTMAGENTA,
-                   LCD_COLOR_LIGHTYELLOW, LCD_COLOR_DARKBLUE, LCD_COLOR_DARKGREEN, LCD_COLOR_DARKRED, LCD_COLOR_DARKCYAN,
-                   LCD_COLOR_DARKMAGENTA, LCD_COLOR_DARKYELLOW, LCD_COLOR_LIGHTGRAY, LCD_COLOR_GRAY, LCD_COLOR_DARKGRAY,
-                   LCD_COLOR_BLACK, LCD_COLOR_BROWN, LCD_COLOR_ORANGE };
+  uint32_t colors[24] = {LCD_COLOR_BLUE,
+                         LCD_COLOR_GREEN,
+                         LCD_COLOR_RED,
+                         LCD_COLOR_CYAN,
+                         LCD_COLOR_MAGENTA,
+                         LCD_COLOR_YELLOW,
+                         LCD_COLOR_LIGHTBLUE,
+                         LCD_COLOR_LIGHTGREEN,
+                         LCD_COLOR_LIGHTRED,
+                         LCD_COLOR_LIGHTCYAN,
+                         LCD_COLOR_LIGHTMAGENTA,
+                         LCD_COLOR_LIGHTYELLOW,
+                         LCD_COLOR_DARKBLUE,
+                         LCD_COLOR_DARKGREEN,
+                         LCD_COLOR_DARKRED,
+                         LCD_COLOR_DARKCYAN,
+                         LCD_COLOR_DARKMAGENTA,
+                         LCD_COLOR_DARKYELLOW,
+                         LCD_COLOR_LIGHTGRAY,
+                         LCD_COLOR_GRAY,
+                         LCD_COLOR_DARKGRAY,
+                         LCD_COLOR_BLACK,
+                         LCD_COLOR_BROWN,
+                         LCD_COLOR_ORANGE};
   uint32_t ts_status = TS_OK;
   uint8_t lcd_string[TOUCH_INFO_STRING_SIZE] = "";
 
@@ -594,10 +606,11 @@ static uint32_t Touchscreen_Handle_NewTouch(void)
 
       BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
       BSP_LCD_SetFont(&Font16);
-      BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() - 70, (uint8_t *)"TOUCH INFO : ", CENTER_MODE);
+      BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() - 70, (uint8_t*)"TOUCH INFO : ", CENTER_MODE);
 
       BSP_LCD_SetFont(&Font12);
-      sprintf((char*)lcd_string, "x1 = %d, y1 = %d, Event = %s, Weight = %d",
+      sprintf((char*)lcd_string,
+              "x1 = %d, y1 = %d, Event = %s, Weight = %d",
               x1,
               y1,
               ts_event_string_tab[TS_State.touchEventId[0]],
@@ -620,7 +633,8 @@ static uint32_t Touchscreen_Handle_NewTouch(void)
       /* If valid touch 2 position : inside the reserved area for the use case : draw the touch */
       if(drawTouch2 == 1)
       {
-        sprintf((char*)lcd_string, "x2 = %d, y2 = %d, Event = %s, Weight = %d",
+        sprintf((char*)lcd_string,
+                "x2 = %d, y2 = %d, Event = %s, Weight = %d",
                 x2,
                 y2,
                 ts_event_string_tab[TS_State.touchEventId[1]],
@@ -647,11 +661,12 @@ static uint32_t Touchscreen_Handle_NewTouch(void)
     {
       /* Invalid touch position */
       BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
-      BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() - 70, (uint8_t *)"Invalid touch position : use drawn touch area : ", CENTER_MODE);
+      BSP_LCD_DisplayStringAt(
+          0, BSP_LCD_GetYSize() - 70, (uint8_t*)"Invalid touch position : use drawn touch area : ", CENTER_MODE);
     }
   } /* of if(TS_State.TouchDetected) */
 
-  return(ts_status);
+  return (ts_status);
 }
 
 #endif // TS_MULTI_TOUCH_SUPPORTED == 1
@@ -678,27 +693,23 @@ uint8_t TouchScreen_GetTouchPosition(void)
     x1 = TS_State.touchX[0];
     y1 = TS_State.touchY[0];
 
-    if ((y1 > (CIRCLE_YPOS(1) - CIRCLE_RADIUS)) &&
-        (y1 < (CIRCLE_YPOS(1) + CIRCLE_RADIUS)))
+    if((y1 > (CIRCLE_YPOS(1) - CIRCLE_RADIUS)) && (y1 < (CIRCLE_YPOS(1) + CIRCLE_RADIUS)))
     {
-      if ((x1 > (CIRCLE_XPOS(2) - CIRCLE_RADIUS)) &&
-          (x1 < (CIRCLE_XPOS(2) + CIRCLE_RADIUS)))
+      if((x1 > (CIRCLE_XPOS(2) - CIRCLE_RADIUS)) && (x1 < (CIRCLE_XPOS(2) + CIRCLE_RADIUS)))
       {
         sampleCounter = 0;
         yOffset = 0;
         circleNr = 1;
       }
 
-      if ((x1 > (CIRCLE_XPOS(3) - CIRCLE_RADIUS)) &&
-          (x1 < (CIRCLE_XPOS(3) + CIRCLE_RADIUS)))
+      if((x1 > (CIRCLE_XPOS(3) - CIRCLE_RADIUS)) && (x1 < (CIRCLE_XPOS(3) + CIRCLE_RADIUS)))
       {
         circleNr = 2;
       }
     }
     else
     {
-      if (((y1 < 220) && (y1 > 140)) &&
-          ((x1 < 160) && (x1 > 100)))
+      if(((y1 < 220) && (y1 > 140)) && ((x1 < 160) && (x1 > 100)))
       {
         circleNr = 0xFE; /* top part of the screen */
       }

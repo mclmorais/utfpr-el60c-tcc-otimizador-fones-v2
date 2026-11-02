@@ -5,60 +5,57 @@
 #include "stm32f769i_discovery_lcd.h"
 #include <stdbool.h>
 
-
 // defines -----------------------------------------------------------
-#define LCD_SCREEN_WIDTH              800
-#define LCD_SCREEN_HEIGHT             480
-#define ARGB8888_BYTE_PER_PIXEL       4
-#define LAYER0_ADDRESS    (LCD_FB_START_ADDRESS)
-#define LAYER1_ADDRESS    (LCD_FB_START_ADDRESS + (800 * 480 * ARGB8888_BYTE_PER_PIXEL)) 
+#define LCD_SCREEN_WIDTH        800
+#define LCD_SCREEN_HEIGHT       480
+#define ARGB8888_BYTE_PER_PIXEL 4
+#define LAYER0_ADDRESS          (LCD_FB_START_ADDRESS)
+#define LAYER1_ADDRESS          (LCD_FB_START_ADDRESS + (800 * 480 * ARGB8888_BYTE_PER_PIXEL))
 
 /* LTDC foreground layer address 800x480 in ARGB8888 */
-#define LCD_FG_LAYER_ADDRESS          LCD_FB_START_ADDRESS
+#define LCD_FG_LAYER_ADDRESS LCD_FB_START_ADDRESS
 
 /* LTDC background layer address 800x480 in ARGB8888 following the foreground layer */
-#define LCD_BG_LAYER_ADDRESS          LCD_FG_LAYER_ADDRESS + (LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * ARGB8888_BYTE_PER_PIXEL)
+#define LCD_BG_LAYER_ADDRESS LCD_FG_LAYER_ADDRESS + (LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * ARGB8888_BYTE_PER_PIXEL)
 
-#define INTERNAL_BUFFER_START_ADDRESS LCD_BG_LAYER_ADDRESS + (LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * ARGB8888_BYTE_PER_PIXEL)
+#define INTERNAL_BUFFER_START_ADDRESS \
+  LCD_BG_LAYER_ADDRESS + (LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * ARGB8888_BYTE_PER_PIXEL)
 
 #define NUMBER_OF_CIRCLE_BUTTONS 1
 #define NUMBER_OF_SLIDER_BUTTONS 8
 
 // typedefs ----------------------------------------------------------
-typedef struct CircleButton
-{
-    uint16_t x;
-    uint16_t y;
-    uint16_t radius;
-    char* onText;
-    char* offText;
-    bool isPressed;
-    bool isIndependent;
-    bool isActive;
-    uint32_t debounceTimer;
+typedef struct CircleButton {
+  uint16_t x;
+  uint16_t y;
+  uint16_t radius;
+  char* onText;
+  char* offText;
+  bool isPressed;
+  bool isIndependent;
+  bool isActive;
+  uint32_t debounceTimer;
 } CircleButtonTypeDef;
 
-typedef struct RectangleButton
-{
-    uint16_t x;
-    uint16_t y;
-    uint16_t width;
-    uint16_t height;
-    char* text;
-    bool isPressed;
-    bool isActive;
+typedef struct RectangleButton {
+  uint16_t x;
+  uint16_t y;
+  uint16_t width;
+  uint16_t height;
+  char* text;
+  bool isPressed;
+  bool isActive;
 } RectangleButton;
 
-typedef struct SliderKnob
-{
-    uint16_t sliderX;
-    uint16_t sliderY;
-    uint16_t sliderWidth;
-    uint16_t sliderHeight;
-    uint16_t knobY;
-    uint16_t knobRadius;
-    uint32_t debounceCount;
-    uint32_t debouceLimit;
+typedef struct SliderKnob {
+  uint16_t sliderX;
+  uint16_t sliderY;
+  uint16_t sliderWidth;
+  uint16_t sliderHeight;
+  uint16_t knobY;
+  uint16_t knobRadius;
+  uint32_t debounceCount;
+  uint32_t debouceLimit;
 } SliderKnob;
 
 // function prototypes -----------------------------------------------
@@ -79,7 +76,6 @@ void LCD_SetFlip(bool isFlipped);
 void LCD_SetBrightness(uint8_t brightness);
 void LCD_CycleBrightness(void);
 void LCD_SetDarkMode(bool isDark);
-
 
 extern CircleButtonTypeDef circleButtons[];
 extern SliderKnob sliderKnobs[];
