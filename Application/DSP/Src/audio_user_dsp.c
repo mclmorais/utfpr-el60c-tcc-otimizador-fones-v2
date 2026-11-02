@@ -67,6 +67,9 @@ void AudioUserDsp_Process(uint8_t* frames, uint32_t length)
 {
   uint32_t chainStart = CycleCounter_Read();
   uint32_t frameCount = length / 4;
+  // An empty packet must not consume a pending fade: the next packet with audio has to carry it.
+  if(frameCount == 0)
+    return;
 
   for(uint32_t frame = 0; frame < frameCount; frame++)
   {

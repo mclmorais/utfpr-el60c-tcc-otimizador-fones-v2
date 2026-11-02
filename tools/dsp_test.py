@@ -267,6 +267,35 @@ def switching_never_jumps_more_than_the_signal(dsp):
 
 
 @case
+def empty_packet_does_not_consume_the_fade(dsp):
+    """An empty packet on the switch edge must leave the fade for the next packet that has audio."""
+    band = dsp.band_centres.index(1000)
+    gains = [0] * BAND_COUNT
+    gains[band] = 6
+    dsp.set_gains_db(gains)
+    tone = cosine(1000, 2 * SWITCH_SEGMENT)
+    frames = np.stack([tone, tone], axis=1).astype(np.int16)
+    dsp.settle()
+    output = dsp.process(frames[:SWITCH_SEGMENT])
+    dsp.enabled.value = False
+    try:
+        empty = np.zeros(4, dtype=np.uint8)
+        dsp.lib.AudioUserDsp_Process(empty.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)), 0)
+        output = np.concatenate([output, dsp.process(frames[SWITCH_SEGMENT:])]).astype(int)
+    finally:
+        dsp.enabled.value = True
+    steps = np.abs(np.diff(output, axis=0))
+    near_switch = np.zeros(len(steps), dtype=bool)
+    near_switch[SWITCH_SEGMENT - 1 : SWITCH_SEGMENT + FRAMES_PER_PACKET + 1] = True
+    signal_step = steps[~near_switch].max(axis=0)
+    switch_step = steps[near_switch].max(axis=0)
+    if np.any(switch_step > signal_step):
+        raise Failure(f"switching after an empty packet steps by {switch_step.tolist()}, "
+                      f"the signal itself by at most {signal_step.tolist()}")
+    return []
+
+
+@case
 def boosted_band_follows_cookbook(dsp):
     """Each band alone at +6 dB: +6 dB at its centre and the cookbook curve one octave around it."""
     errors, curves = [], []
