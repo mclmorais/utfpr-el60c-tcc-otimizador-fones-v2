@@ -19,6 +19,9 @@ SpaceBeforeParens: Never
 PointerAlignment: Left
 AlignConsecutiveMacros: Consecutive
 AlignArrayOfStructures: Left
+AlignEscapedNewlines: Left
+BinPackArguments: false
+BinPackLongBracedList: false
 AllowShortFunctionsOnASingleLine: None
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortBlocksOnASingleLine: Never

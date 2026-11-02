@@ -19,12 +19,11 @@ Checks: >
   -readability-implicit-bool-conversion,
   -readability-magic-numbers,
   -readability-math-missing-parentheses,
-  -readability-trailing-comma,
   -readability-uppercase-literal-suffix,
   -readability-use-concise-preprocessor-directives
 ExtraArgsBefore:
   - --target=arm-none-eabi
 RemovedArgs:
   - -fcyclomatic-complexity
-HeaderFilterRegex: 'Application[/\\](DSP|Persistence|Touchscreen|USART|User)[/\\]'
+HeaderFilterRegex: 'Application[/\\]'
 ExcludeHeaderFilterRegex: '(argb8888|logo)\.h$'

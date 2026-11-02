@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Format and lint the project's own C code with clang-format and clang-tidy.
+"""Format and lint the C code under Application/ with clang-format and clang-tidy.
 
-The files under .clang-format-ignore (ST drivers and examples) are skipped by
-both tools. clang-tidy reads build/Debug/compile_commands.json, so build the
+The files under .clang-format-ignore (ST libraries and image data) are skipped
+by both tools. clang-tidy reads build/Debug/compile_commands.json, so build the
 Debug preset first.
 
 Usage:

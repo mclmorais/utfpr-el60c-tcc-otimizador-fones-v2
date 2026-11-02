@@ -1,11 +1,6 @@
-# Código da ST mantido como veio, para facilitar a comparação com os exemplos originais.
+# Bibliotecas da ST mantidas como vieram, para facilitar a atualização.
 Drivers/**
 Utilities/**
-Application/Streaming/**
-Application/USB_Device_Audio/**
-Application/User/Inc/stm32f7xx_*
-Application/User/Src/stm32f7xx_*
-Application/User/Src/system_stm32f7xx.c
 Application/Touchscreen/Inc/*argb8888.h
 Application/Touchscreen/Inc/stlogo.h
 Application/Touchscreen/Inc/utfprlogo.h
