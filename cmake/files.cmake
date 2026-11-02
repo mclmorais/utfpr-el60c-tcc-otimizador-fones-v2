@@ -2,6 +2,7 @@
 target_sources(${PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/DSP/Src/audio_user_dsp.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/DSP/Src/equalizer.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Application/DSP/Src/virtualizer.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/Persistence/Src/flash_persistence.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/SW4STM32/startup_stm32f769xx.s"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/Streaming/Src/audio_speaker_node.c"

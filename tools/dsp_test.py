@@ -22,6 +22,7 @@ import glob
 import os
 import subprocess
 import sys
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 import numpy as np
@@ -78,6 +79,22 @@ class EqBand(ctypes.Structure):
     _fields_ = [("frequency", ctypes.c_float), ("label", ctypes.c_char_p)]
 
 
+class CrossfeedPreset(ctypes.Structure):
+    _fields_ = [("name", ctypes.c_char_p), ("cutoff_hz", ctypes.c_float), ("level_db", ctypes.c_float)]
+
+
+@dataclass
+class Preset:
+    index: int
+    name: str
+    cutoff_hz: float
+    level_db: float
+
+
+# The Presets as published, by the name the firmware gives them (the LCD fonts are ASCII only).
+PUBLISHED_PRESETS = {"Padrao": (700, 4.5), "Chu Moy": (700, 6.0), "Jan Meier": (650, 9.5)}
+
+
 class Dsp:
     """The firmware DSP as the USB callback and the screens see it."""
 
@@ -87,6 +104,11 @@ class Dsp:
         self.gains = self.state("eqGains", ctypes.c_int16 * BAND_COUNT)
         self.enabled = self.state("eqEnabled", ctypes.c_bool)
         self.band_centres = [band.frequency for band in self.state("eqBands", EqBand * BAND_COUNT)]
+        self.virt_enabled = self.state("virtEnabled", ctypes.c_bool)
+        self.preset = self.state("crossfeedPreset", ctypes.c_uint8)
+        count = self.state("crossfeedPresetCount", ctypes.c_uint8).value
+        table = self.state("crossfeedPresets", CrossfeedPreset * count)
+        self.presets = [Preset(i, p.name.decode(), p.cutoff_hz, p.level_db) for i, p in enumerate(table)]
 
     def state(self, name, ctype):
         return ctype.in_dll(self.lib, name)
@@ -112,7 +134,7 @@ class Dsp:
 
 
 def response_db(dsp, frequencies, amplitude=1000):
-    """Steady-state gain of each channel at each frequency, all measured together in one multitone run.
+    """Steady-state gain of each channel at each frequency, the same tones on both, all measured together.
 
     Every frequency must be a multiple of 0.5 Hz: the tones then hold whole cycles in the measured
     window and are orthogonal, so each projection sees only its own tone.
@@ -187,24 +209,22 @@ def disabled_equalizer_is_bit_exact(dsp):
     return []
 
 
-@case
-def switching_never_jumps_more_than_the_signal(dsp):
-    """Off and back on with a boosted 1 kHz tone, switched at its peak, where on and off differ most."""
-    band = dsp.band_centres.index(1000)
-    gains = [0] * BAND_COUNT
-    gains[band] = 6
-    dsp.set_gains_db(gains)
-    segment = 200 * FRAMES_PER_PACKET
-    tone = np.round(8000 * np.cos(2 * np.pi * 1000 * np.arange(3 * segment) / SAMPLE_RATE))
-    frames = np.stack([tone, tone], axis=1).astype(np.int16)
+SWITCH_SEGMENT = 200 * FRAMES_PER_PACKET
 
+
+def switching_errors(dsp, switch, frames):
+    """Run frames with switch on, off for the middle third and on again, switched at packet boundaries.
+
+    Pick frames where on and off differ most at the switches. Returns what went wrong.
+    """
+    segment = SWITCH_SEGMENT
     dsp.settle()
     always_on = dsp.process(frames).astype(int)
     dsp.settle()
     output = dsp.process(frames[:segment])
-    dsp.enabled.value = False
+    switch.value = False
     output = np.concatenate([output, dsp.process(frames[segment : 2 * segment])])
-    dsp.enabled.value = True
+    switch.value = True
     output = np.concatenate([output, dsp.process(frames[2 * segment :])]).astype(int)
 
     steps = np.abs(np.diff(output, axis=0))
@@ -225,6 +245,22 @@ def switching_never_jumps_more_than_the_signal(dsp):
     if np.any(output[after_fade:] != always_on[after_fade:]):
         errors.append("after switching back on, the output differs from a run that stayed on: "
                       "the filters stopped following the signal while off")
+    return errors
+
+
+def cosine(frequency, frames, amplitude=8000):
+    return np.round(amplitude * np.cos(2 * np.pi * frequency * np.arange(frames) / SAMPLE_RATE))
+
+
+@case
+def switching_never_jumps_more_than_the_signal(dsp):
+    """Off and back on with a boosted 1 kHz tone, switched at its peak, where on and off differ most."""
+    band = dsp.band_centres.index(1000)
+    gains = [0] * BAND_COUNT
+    gains[band] = 6
+    dsp.set_gains_db(gains)
+    tone = cosine(1000, 3 * SWITCH_SEGMENT)
+    errors = switching_errors(dsp, dsp.enabled, np.stack([tone, tone], axis=1).astype(np.int16))
     if errors:
         raise Failure("; ".join(errors))
     return []
@@ -253,6 +289,162 @@ def boosted_band_follows_cookbook(dsp):
     if errors:
         raise Failure(f"{len(errors)} wrong responses:\n    " + "\n    ".join(errors))
     return [Plot("Cada banda sozinha em +6 dB", curves)]
+
+
+@contextmanager
+def virtualizer_on(dsp, preset):
+    """The Virtualization on with this Preset and the Equalizer flat, settled; switched back off after."""
+    dsp.set_gains_db([0] * BAND_COUNT)
+    dsp.preset.value = preset.index
+    dsp.virt_enabled.value = True
+    try:
+        dsp.settle()
+        yield
+    finally:
+        dsp.virt_enabled.value = False
+        dsp.preset.value = 0
+
+
+def raise_errors(errors):
+    if errors:
+        raise Failure(f"{len(errors)} wrong responses:\n    " + "\n    ".join(errors))
+
+
+@case
+def presets_match_published_values(dsp):
+    errors = []
+    for preset in dsp.presets:
+        published = PUBLISHED_PRESETS.get(preset.name)
+        if published is None:
+            errors.append(f"Preset {preset.name!r} is not one of the published {list(PUBLISHED_PRESETS)}")
+        elif (preset.cutoff_hz, preset.level_db) != published:
+            errors.append(f"Preset {preset.name}: {preset.cutoff_hz:g} Hz, {preset.level_db:g} dB, "
+                          f"published as {published[0]:g} Hz, {published[1]:g} dB")
+    if dsp.presets[0].name != "Padrao":
+        errors.append(f"the first Preset, which an erased flash word loads, is {dsp.presets[0].name}, not Padrao")
+    raise_errors(errors)
+    return []
+
+
+@case
+def crossfeed_keeps_mono_level(dsp):
+    """A mono signal keeps 0 dB at low frequencies and stays within 1 dB from 20 Hz to 20 kHz (ADR 0001)."""
+    errors, curves = [], []
+    frequencies = np.array(dsp.band_centres)
+    for preset in dsp.presets:
+        with virtualizer_on(dsp, preset):
+            left, right = response_db(dsp, frequencies)
+        for channel, measured in (("left", left), ("right", right)):
+            if abs(measured[0]) > TOLERANCE_DB:
+                errors.append(f"{preset.name}, {channel} at {frequencies[0]:g} Hz: {measured[0]:+.2f} dB, expected 0 dB")
+            for frequency, got in zip(frequencies, measured):
+                if abs(got) > 1:
+                    errors.append(f"{preset.name}, {channel} at {frequency:g} Hz: {got:+.2f} dB, beyond 1 dB")
+        curves.append(Curve(preset.name, frequencies, left, np.zeros(len(frequencies))))
+    raise_errors(errors)
+    return [Plot("Sinal mono com a Virtualização ligada", curves)]
+
+
+def left_impulse_response(dsp, preset, amplitude=32767):
+    """Gain of each output channel per frequency (1 Hz apart) for an impulse on the left input only."""
+    frames = np.zeros((SAMPLE_RATE, 2), dtype=np.int16)
+    frames[0, 0] = amplitude
+    with virtualizer_on(dsp, preset):
+        output = dsp.process(frames).astype(float)
+    return [np.abs(np.fft.rfft(output[:, channel])) / amplitude for channel in range(2)]
+
+
+@case
+def left_impulse_crosses_through_lowpass(dsp):
+    """The right output of a left-only impulse is a lowpass at the cutoff, the Preset's level below the direct path."""
+    errors, curves = [], []
+    low = 20
+    for preset in dsp.presets:
+        direct, crossed = left_impulse_response(dsp, preset)
+        if crossed[low] < 1e-3:
+            errors.append(f"{preset.name}: nothing of the left impulse reaches the right output")
+            continue
+        level_db = 20 * np.log10(direct[low] / crossed[low])
+        if abs(level_db - preset.level_db) > TOLERANCE_DB:
+            errors.append(f"{preset.name}: the crossed path is {level_db:.2f} dB below the direct one at {low} Hz, "
+                          f"expected {preset.level_db:g} dB")
+        corner = np.flatnonzero(crossed < crossed[low] / np.sqrt(2))[0]
+        if abs(corner - preset.cutoff_hz) > 0.05 * preset.cutoff_hz:
+            errors.append(f"{preset.name}: the crossed path falls 3 dB at {corner} Hz, expected near {preset.cutoff_hz:g} Hz")
+        decade = int(10 * preset.cutoff_hz)
+        drop_db = 20 * np.log10(crossed[low] / crossed[decade])
+        if drop_db < 17:
+            errors.append(f"{preset.name}: the crossed path at {decade} Hz is only {drop_db:.1f} dB below {low} Hz, "
+                          "a first-order lowpass falls about 20 dB a decade above its cutoff")
+        direct_high_db = 20 * np.log10(direct[decade])
+        if abs(direct_high_db) > 1:
+            errors.append(f"{preset.name}: the direct path at {decade} Hz is {direct_high_db:+.2f} dB, "
+                          "expected the treble back near 0 dB")
+        frequencies = np.arange(low, SAMPLE_RATE // 2, 10)
+        curves.append(Curve(f"{preset.name} (direto)", frequencies, 20 * np.log10(direct[frequencies]),
+                            20 * np.log10(direct[frequencies])))
+        curves.append(Curve(f"{preset.name} (cruzado)", frequencies, 20 * np.log10(crossed[frequencies]),
+                            20 * np.log10(crossed[frequencies])))
+    raise_errors(errors)
+    return [Plot("Impulso só na esquerda", curves)]
+
+
+@case
+def mirrored_input_mirrors_output(dsp):
+    frames = np.random.default_rng(2).integers(-32768, 32768, size=(SAMPLE_RATE, 2), dtype=np.int16)
+    errors = []
+    for preset in dsp.presets:
+        with virtualizer_on(dsp, preset):
+            output = dsp.process(frames)
+        with virtualizer_on(dsp, preset):
+            mirrored = dsp.process(frames[:, ::-1])
+        differ = np.flatnonzero(np.any(mirrored[:, ::-1] != output, axis=1))
+        if len(differ):
+            first = differ[0]
+            errors.append(f"{preset.name}: {len(differ)} frames are not mirrored, first at frame {first}: "
+                          f"{output[first].tolist()} vs mirrored {mirrored[first].tolist()}")
+    raise_errors(errors)
+    return []
+
+
+@case
+def full_scale_mono_does_not_saturate(dsp):
+    """A full-scale mono sine where the mono gain is highest keeps its level within 1 dB and its shape within 1%."""
+    errors = []
+    frequencies = np.array(dsp.band_centres)
+    full_scale = 32767
+    for preset in dsp.presets:
+        with virtualizer_on(dsp, preset):
+            gains = np.maximum(*response_db(dsp, frequencies))
+            frequency = frequencies[np.argmax(gains)]
+            frames = SETTLE_PACKETS * FRAMES_PER_PACKET + MEASURE_FRAMES
+            phase = 2 * np.pi * frequency * np.arange(frames) / SAMPLE_RATE
+            tone = np.round(full_scale * np.sin(phase))
+            output = dsp.process(np.stack([tone, tone], axis=1))[-MEASURE_FRAMES:].astype(float)
+        basis = np.exp(-1j * phase[-MEASURE_FRAMES:])
+        for channel, name in enumerate(("left", "right")):
+            projection = 2 * output[:, channel] @ basis / MEASURE_FRAMES
+            level_db = 20 * np.log10(np.abs(projection) / full_scale)
+            fitted = np.real(projection * np.conj(basis))
+            shape_error = np.max(np.abs(output[:, channel] - fitted)) / full_scale
+            if abs(level_db) > 1 or shape_error > 0.01:
+                errors.append(f"{preset.name}, {name} at {frequency:g} Hz: level {level_db:+.2f} dB, "
+                              f"off the sine by up to {100 * shape_error:.2f}% of full scale")
+    raise_errors(errors)
+    return []
+
+
+@case
+def switching_virtualizer_never_jumps_more_than_the_signal(dsp):
+    """Off and back on with a 250 Hz tone on the left only, switched at its peak, where on and off differ most."""
+    errors = []
+    tone = cosine(250, 3 * SWITCH_SEGMENT)
+    frames = np.stack([tone, np.zeros(len(tone))], axis=1).astype(np.int16)
+    for preset in dsp.presets:
+        with virtualizer_on(dsp, preset):
+            errors += [f"{preset.name}, {error}" for error in switching_errors(dsp, dsp.virt_enabled, frames)]
+    raise_errors(errors)
+    return []
 
 
 def save_plots(name, plots, directory):

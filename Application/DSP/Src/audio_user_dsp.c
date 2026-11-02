@@ -2,11 +2,12 @@
 #include "cycle_counter.h"
 #include "dsp_module.h"
 #include "equalizer.h"
+#include "virtualizer.h"
 #include <string.h>
 
 // The Chain is fixed at compile time, in this order (docs/adr/0001-cadeia-fixa-de-modulos.md).
 // tools/usb_audio_probe.py names moduleWorstCaseCycles in the same order.
-static const DspModule* const chain[] = {&equalizerModule};
+static const DspModule* const chain[] = {&virtualizerModule, &equalizerModule};
 #define CHAIN_LENGTH (sizeof(chain) / sizeof(chain[0]))
 
 volatile uint32_t chainWorstCaseCycles;

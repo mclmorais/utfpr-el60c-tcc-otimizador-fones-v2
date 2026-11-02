@@ -38,7 +38,7 @@ SPEAKER_NODE = ("PlaybackSpeakerOutputNode", 0)
 CHAIN_CYCLES = "chainWorstCaseCycles"
 MODULE_CYCLES = "moduleWorstCaseCycles"
 # Chain order, as in the chain array of Application/DSP/Src/audio_user_dsp.c.
-MODULES = ["Equalizador"]
+MODULES = ["Virtualizacao", "Equalizador"]
 CPU_HZ = 216_000_000
 PACKET_BUDGET_CYCLES = CPU_HZ // 1000
 STATES = ["OFF", "INITIALIZED", "STARTED", "STOPPED", "ERROR"]
