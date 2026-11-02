@@ -66,8 +66,10 @@ int main(void)
 	HAL_Delay(1000);
 
 	USART1_UART_Init();
-	LCD_Init();
-	LCD_SetFlip(FlashPersistence_ReadFlip());
+	DisplaySettings display = FlashPersistence_ReadDisplay();
+	LCD_Init(display.isDark);
+	LCD_SetFlip(display.isFlipped);
+	LCD_SetBrightness(display.brightness);
 	Touchscreen_Init();
 	
 	uint8_t initString[] = "\r\n--- Horoscope Initialization Complete! ---\r\n";
