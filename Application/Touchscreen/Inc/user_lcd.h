@@ -30,8 +30,6 @@ typedef struct CircleButton
     uint16_t x;
     uint16_t y;
     uint16_t radius;
-    uint32_t color;
-    uint32_t textColor;
     char* onText;
     char* offText;
     bool isPressed;
@@ -46,8 +44,6 @@ typedef struct RectangleButton
     uint16_t y;
     uint16_t width;
     uint16_t height;
-    uint32_t inactiveColor;
-    uint32_t activeColor;
     char* text;
     bool isPressed;
     bool isActive;
@@ -59,7 +55,6 @@ typedef struct SliderKnob
     uint16_t sliderY;
     uint16_t sliderWidth;
     uint16_t sliderHeight;
-    uint32_t sliderColor;
     uint16_t knobY;
     uint16_t knobRadius;
     uint32_t debounceCount;
@@ -67,11 +62,10 @@ typedef struct SliderKnob
 } SliderKnob;
 
 // function prototypes -----------------------------------------------
-void LCD_Init(void);
+void LCD_Init(bool isDark);
 void LCD_UpdateWatchdog(uint32_t* watchdogCounter);
 void LCD_UpdateButton(uint8_t buttonIndex, bool isPressed, bool shouldToggleOtherButtons);
 void LCD_DisplayKnob(uint8_t knobIndex, int16_t gain);
-void BSP_LCD_DrawPicture(const uint8_t* image, uint32_t width, uint32_t height, uint32_t xPosition, uint32_t yPosition);
 uint16_t LCD_TranslateGainToKnobPosition(uint8_t knobIndex, int16_t gain);
 int16_t LCD_TranslateKnobPositionToGain(uint8_t knobIndex, uint16_t knobY);
 int8_t LCD_StepButtonAt(uint8_t knobIndex, uint16_t x, uint16_t y);
@@ -84,6 +78,7 @@ void LCD_InitSlider(uint8_t knobIndex);
 void LCD_SetFlip(bool isFlipped);
 void LCD_SetBrightness(uint8_t brightness);
 void LCD_CycleBrightness(void);
+void LCD_SetDarkMode(bool isDark);
 
 
 extern CircleButtonTypeDef circleButtons[];
@@ -95,6 +90,7 @@ extern RectangleButton previousPageButton;
 extern RectangleButton nextPageButton;
 extern RectangleButton flipButton;
 extern RectangleButton brightnessButton;
+extern RectangleButton darkModeButton;
 extern uint8_t lcdBrightness;
 
 #endif // __LCD_H
