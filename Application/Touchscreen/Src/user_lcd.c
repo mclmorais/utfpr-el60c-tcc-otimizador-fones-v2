@@ -330,7 +330,7 @@ void LCD_CycleBrightness(void)
 {
   // Steps to the next dimmer level and wraps to the brightest; a saved level between entries steps to the one below it.
   uint8_t next = brightnessLevels[0];
-  for(uint8_t i = 0; i < sizeof(brightnessLevels); i++)
+  for(size_t i = 0; i < sizeof(brightnessLevels); i++)
   {
     if(brightnessLevels[i] < lcdBrightness)
     {
@@ -429,7 +429,7 @@ void LCD_UpdateRectangleButton(RectangleButton* button)
 int8_t LCD_ColumnToBand(uint8_t column)
 {
   uint32_t band = eqPage * NUMBER_OF_SLIDER_BUTTONS + column;
-  return band < EQ_BAND_COUNT ? band : -1;
+  return band < EQ_BAND_COUNT ? (int8_t)band : -1;
 }
 
 static uint16_t StepButtonY(SliderKnob* knob, int8_t step)
