@@ -18,6 +18,8 @@ typedef struct EqBand {
 
 extern const EqBand eqBands[EQ_BAND_COUNT];
 extern volatile int16_t eqGains[EQ_BAND_COUNT];
+// Worst DWT cycle count of one AudioUserDsp_Process call since Init; read over ST-LINK by tools/usb_audio_probe.py.
+extern volatile uint32_t dspWorstCaseCycles;
 
 void AudioUserDsp_Init(void);
 void AudioUserDsp_Process(uint8_t* frames, uint32_t length);

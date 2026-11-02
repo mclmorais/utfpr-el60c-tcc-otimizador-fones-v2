@@ -207,6 +207,8 @@ tools/usb_audio_probe.py
 
 Sem argumento, ele usa o `build/Debug/horoscope.elf`. A linha `idle` mostra o estado antes do tom. Ela já aparece como `STARTED` se outro programa estiver tocando áudio na placa.
 
+A última linha antes do resultado, `dsp worst case`, mostra quanto do orçamento de 1 ms por pacote o DSP consome. O firmware mede com o contador de ciclos DWT do Cortex-M7 cada chamada de `AudioUserDsp_Process` e guarda o maior valor desde a inicialização na variável global `dspWorstCaseCycles`. A sonda lê essa variável pelo ST-LINK, pelo símbolo do ELF, e mostra os ciclos e a porcentagem do orçamento de 216.000 ciclos (1 ms a 216 MHz). O valor inclui as interrupções que preemptam o DSP e a recompilação de uma Banda por pacote depois de uma mudança de ganho. A medição só tem sentido depois de o tom tocar por alguns segundos.
+
 ### Formatar e Analisar o Código
 
 O clang-format formata o código e o clang-tidy procura erros comuns. As regras ficam em `.clang-format` e `.clang-tidy`. As bibliotecas da ST em `Drivers/` e `Utilities/` e os headers de imagem, listados em `.clang-format-ignore`, ficam de fora.
