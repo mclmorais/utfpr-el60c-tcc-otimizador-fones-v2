@@ -105,7 +105,7 @@ static void MarkEqEdited(void)
 
 static DisplaySettings CurrentDisplay(void)
 {
-  return (DisplaySettings){flipButton.isActive, lcdBrightness};
+  return (DisplaySettings){flipButton.isActive, lcdBrightness, darkModeButton.isActive};
 }
 
 void Touchscreen_Init(void)
@@ -181,6 +181,19 @@ void Touchscreen_ButtonHandler(void)
     {
       isTapLatched = true;
       LCD_CycleBrightness();
+      FlashPersistence_WriteDisplay(CurrentDisplay());
+    }
+
+    return;
+  }
+
+  if(touchXPosition > darkModeButton.x && touchXPosition < darkModeButton.x + darkModeButton.width &&
+     touchYPosition > darkModeButton.y && touchYPosition < darkModeButton.y + darkModeButton.height)
+  {
+    if(!isTapLatched)
+    {
+      isTapLatched = true;
+      LCD_SetDarkMode(!darkModeButton.isActive);
       FlashPersistence_WriteDisplay(CurrentDisplay());
     }
 

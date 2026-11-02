@@ -14,6 +14,7 @@ typedef struct DisplaySettings
 {
     bool isFlipped;
     uint8_t brightness; // percent
+    bool isDark;
 } DisplaySettings;
 
 void FlashPersistence_Write(DisplaySettings display);
