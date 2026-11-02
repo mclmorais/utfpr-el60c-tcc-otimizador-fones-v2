@@ -2,6 +2,7 @@
 #include "cycle_counter.h"
 #include "dsp_module.h"
 #include "equalizer.h"
+#include <string.h>
 
 // The Chain is fixed at compile time, in this order (docs/adr/0001-cadeia-fixa-de-modulos.md).
 // tools/usb_audio_probe.py names moduleWorstCaseCycles in the same order.
@@ -13,6 +14,10 @@ volatile uint32_t moduleWorstCaseCycles[CHAIN_LENGTH];
 
 static float left[AUDIO_USER_DSP_MAX_PACKET_FRAMES];
 static float right[AUDIO_USER_DSP_MAX_PACKET_FRAMES];
+static float dryLeft[AUDIO_USER_DSP_MAX_PACKET_FRAMES];
+static float dryRight[AUDIO_USER_DSP_MAX_PACKET_FRAMES];
+// The switch state each Module's output last reached; a packet where it differs from enabled is a fade.
+static bool wasEnabled[CHAIN_LENGTH];
 
 void AudioUserDsp_Init(void)
 {
@@ -21,7 +26,20 @@ void AudioUserDsp_Init(void)
   for(uint32_t i = 0; i < CHAIN_LENGTH; i++)
   {
     moduleWorstCaseCycles[i] = 0;
+    wasEnabled[i] = *chain[i]->enabled;
     chain[i]->init();
+  }
+}
+
+// Linear over the packet, ending fully on the new state so the next packet needs no fade.
+static void AudioUserDsp_Crossfade(float* wet, const float* dry, uint32_t frameCount, bool isFadingIn)
+{
+  for(uint32_t frame = 0; frame < frameCount; frame++)
+  {
+    float weight = (float)(frame + 1) / (float)frameCount;
+    if(!isFadingIn)
+      weight = 1.0f - weight;
+    wet[frame] = dry[frame] + (wet[frame] - dry[frame]) * weight;
   }
 }
 
@@ -58,7 +76,22 @@ void AudioUserDsp_Process(uint8_t* frames, uint32_t length)
   for(uint32_t i = 0; i < CHAIN_LENGTH; i++)
   {
     uint32_t moduleStart = CycleCounter_Read();
+    memcpy(dryLeft, left, frameCount * sizeof(float));
+    memcpy(dryRight, right, frameCount * sizeof(float));
     chain[i]->process(left, right, frameCount);
+
+    bool isEnabled = *chain[i]->enabled;
+    if(isEnabled != wasEnabled[i])
+    {
+      AudioUserDsp_Crossfade(left, dryLeft, frameCount, isEnabled);
+      AudioUserDsp_Crossfade(right, dryRight, frameCount, isEnabled);
+      wasEnabled[i] = isEnabled;
+    }
+    else if(!isEnabled)
+    {
+      memcpy(left, dryLeft, frameCount * sizeof(float));
+      memcpy(right, dryRight, frameCount * sizeof(float));
+    }
     uint32_t moduleCycles = CycleCounter_Read() - moduleStart;
     if(moduleCycles > moduleWorstCaseCycles[i])
       moduleWorstCaseCycles[i] = moduleCycles;

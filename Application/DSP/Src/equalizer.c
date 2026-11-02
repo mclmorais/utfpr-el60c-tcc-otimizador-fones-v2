@@ -64,6 +64,7 @@ const EqBand eqBands[EQ_BAND_COUNT] = {
 };
 
 volatile int16_t eqGains[EQ_BAND_COUNT];
+volatile bool eqEnabled = true;
 
 static DoubleBiquad lowFilters[DOUBLE_PRECISION_BAND_COUNT];
 static FloatBiquad highFilters[SINGLE_PRECISION_BAND_COUNT];
@@ -219,4 +220,4 @@ static void Equalizer_Process(float* left, float* right, uint32_t frameCount)
   Equalizer_ProcessChannel(right, frameCount, 1);
 }
 
-const DspModule equalizerModule = {Equalizer_Init, Equalizer_Process};
+const DspModule equalizerModule = {Equalizer_Init, Equalizer_Process, &eqEnabled};

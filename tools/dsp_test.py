@@ -85,6 +85,7 @@ class Dsp:
         self.lib = ctypes.CDLL(library)
         self.lib.AudioUserDsp_Process.argtypes = [ctypes.POINTER(ctypes.c_uint8), ctypes.c_uint32]
         self.gains = self.state("eqGains", ctypes.c_int16 * BAND_COUNT)
+        self.enabled = self.state("eqEnabled", ctypes.c_bool)
         self.band_centres = [band.frequency for band in self.state("eqBands", EqBand * BAND_COUNT)]
 
     def state(self, name, ctype):
@@ -161,6 +162,71 @@ def flat_bands_are_bit_exact(dsp):
         first = differ[0]
         raise Failure(f"{len(differ)} frames changed with every band at 0 dB, "
                       f"first at frame {first}: {frames[first].tolist()} -> {output[first].tolist()}")
+    return []
+
+
+def alternating_gains_db():
+    return [6 if band % 2 else -6 for band in range(BAND_COUNT)]
+
+
+@case
+def disabled_equalizer_is_bit_exact(dsp):
+    dsp.set_gains_db(alternating_gains_db())
+    dsp.enabled.value = False
+    try:
+        dsp.settle()
+        frames = np.random.default_rng(1).integers(-32768, 32768, size=(SAMPLE_RATE, 2), dtype=np.int16)
+        output = dsp.process(frames)
+    finally:
+        dsp.enabled.value = True
+    differ = np.flatnonzero(np.any(output != frames, axis=1))
+    if len(differ):
+        first = differ[0]
+        raise Failure(f"{len(differ)} frames changed with the Equalizer off and bands at +-6 dB, "
+                      f"first at frame {first}: {frames[first].tolist()} -> {output[first].tolist()}")
+    return []
+
+
+@case
+def switching_never_jumps_more_than_the_signal(dsp):
+    """Off and back on with a boosted 1 kHz tone, switched at its peak, where on and off differ most."""
+    band = dsp.band_centres.index(1000)
+    gains = [0] * BAND_COUNT
+    gains[band] = 6
+    dsp.set_gains_db(gains)
+    segment = 200 * FRAMES_PER_PACKET
+    tone = np.round(8000 * np.cos(2 * np.pi * 1000 * np.arange(3 * segment) / SAMPLE_RATE))
+    frames = np.stack([tone, tone], axis=1).astype(np.int16)
+
+    dsp.settle()
+    always_on = dsp.process(frames).astype(int)
+    dsp.settle()
+    output = dsp.process(frames[:segment])
+    dsp.enabled.value = False
+    output = np.concatenate([output, dsp.process(frames[segment : 2 * segment])])
+    dsp.enabled.value = True
+    output = np.concatenate([output, dsp.process(frames[2 * segment :])]).astype(int)
+
+    steps = np.abs(np.diff(output, axis=0))
+    switches = [segment, 2 * segment]
+    # Step k goes from frame k to k + 1, so the steps touching a fade packet start one frame before it.
+    near_switch = np.zeros(len(steps), dtype=bool)
+    for switch in switches:
+        near_switch[switch - 1 : switch + FRAMES_PER_PACKET + 1] = True
+    signal_step = steps[~near_switch].max(axis=0)
+    switch_step = steps[near_switch].max(axis=0)
+
+    errors = []
+    for channel, name in enumerate(("left", "right")):
+        if switch_step[channel] > signal_step[channel]:
+            errors.append(f"{name}: switching steps by {switch_step[channel]}, "
+                          f"the signal itself by at most {signal_step[channel]}")
+    after_fade = 2 * segment + FRAMES_PER_PACKET
+    if np.any(output[after_fade:] != always_on[after_fade:]):
+        errors.append("after switching back on, the output differs from a run that stayed on: "
+                      "the filters stopped following the signal while off")
+    if errors:
+        raise Failure("; ".join(errors))
     return []
 
 

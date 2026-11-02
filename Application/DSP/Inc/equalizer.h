@@ -2,6 +2,7 @@
 #define __EQUALIZER_H__
 
 #include "dsp_module.h"
+#include <stdbool.h>
 #include <stdint.h>
 
 #define EQ_BAND_COUNT  31
@@ -19,6 +20,7 @@ typedef struct EqBand {
 
 extern const EqBand eqBands[EQ_BAND_COUNT];
 extern volatile int16_t eqGains[EQ_BAND_COUNT];
+extern volatile bool eqEnabled;
 
 extern const DspModule equalizerModule;
 
