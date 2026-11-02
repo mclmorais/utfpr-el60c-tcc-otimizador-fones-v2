@@ -1,5 +1,6 @@
 #include "flash_persistence.h"
 #include "equalizer.h"
+#include "virtualizer.h"
 
 #define FLASH_LAYOUT_TAG          0x32335145
 #define FLASH_WHOLE_DB_LAYOUT_TAG 0x31335145
@@ -12,6 +13,8 @@
 #define FLASH_DARK_WORD (EQ_BAND_COUNT + 3)
 // Sectors saved before the Equalizer switch existed read 0xFFFFFFFF here, which loads as on.
 #define FLASH_EQ_ENABLED_WORD (EQ_BAND_COUNT + 4)
+// Sectors saved before the Virtualization existed read 0xFFFFFFFF here, which loads as off.
+#define FLASH_VIRT_ENABLED_WORD (EQ_BAND_COUNT + 5)
 
 static volatile uint32_t* const words = (volatile uint32_t*)FLASH_USER_START_ADDR;
 
@@ -58,6 +61,7 @@ static void WriteSector(const volatile int16_t* gains, DisplaySettings display)
   HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_BRIGHTNESS_WORD * 4, display.brightness);
   HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_DARK_WORD * 4, display.isDark);
   HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_EQ_ENABLED_WORD * 4, eqEnabled);
+  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_VIRT_ENABLED_WORD * 4, virtEnabled);
   HAL_FLASH_Lock();
 }
 
@@ -84,6 +88,7 @@ void FlashPersistence_Restore()
 void FlashPersistence_RestoreModuleSwitches()
 {
   eqEnabled = SavedGainScale() == 0 || words[FLASH_EQ_ENABLED_WORD] != 0;
+  virtEnabled = SavedGainScale() != 0 && words[FLASH_VIRT_ENABLED_WORD] == 1;
 }
 
 DisplaySettings FlashPersistence_ReadDisplay()

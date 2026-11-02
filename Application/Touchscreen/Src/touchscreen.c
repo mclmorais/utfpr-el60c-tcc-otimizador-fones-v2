@@ -21,6 +21,7 @@
 #include "user_lcd.h"
 #include "flash_persistence.h"
 #include "equalizer.h"
+#include "virtualizer.h"
 /** @addtogroup STM32F7xx_HAL_Examples
  * @{
  */
@@ -109,7 +110,7 @@ void Touchscreen_ButtonHandler(void)
       return;
 
     isTapLatched = false;
-    for(uint8_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++)
+    for(uint32_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++)
     {
       if(++circleButtons[i].debounceTimer > CIRCLE_BUTTON_DEBOUNCE_TIMER)
         circleButtons[i].debounceTimer = CIRCLE_BUTTON_DEBOUNCE_TIMER;
@@ -135,7 +136,7 @@ void Touchscreen_ButtonHandler(void)
     touchYPosition = BSP_LCD_GetYSize() - 1 - touchYPosition;
   }
 
-  for(uint8_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++)
+  for(uint32_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++)
   {
     if((touchYPosition > circleButtons[i].y - circleButtons[i].radius) &&
        (touchYPosition < circleButtons[i].y + circleButtons[i].radius))
@@ -193,7 +194,24 @@ void Touchscreen_ButtonHandler(void)
     return;
   }
 
-  if(circleButtons[0].isActive)
+  if(circleButtons[VIRT_CIRCLE_BUTTON].isActive)
+  {
+    if(touchXPosition > virtSwitchButton.x && touchXPosition < virtSwitchButton.x + virtSwitchButton.width &&
+       touchYPosition > virtSwitchButton.y && touchYPosition < virtSwitchButton.y + virtSwitchButton.height)
+    {
+      if(!isTapLatched)
+      {
+        isTapLatched = true;
+        virtEnabled = !virtEnabled;
+        LCD_UpdateSwitchButton(&virtSwitchButton, virtEnabled);
+        FlashPersistence_WriteSettings(CurrentDisplay());
+      }
+    }
+
+    return;
+  }
+
+  if(circleButtons[EQ_CIRCLE_BUTTON].isActive)
   {
     if(touchXPosition > eqSwitchButton.x && touchXPosition < eqSwitchButton.x + eqSwitchButton.width &&
        touchYPosition > eqSwitchButton.y && touchYPosition < eqSwitchButton.y + eqSwitchButton.height)
@@ -202,7 +220,7 @@ void Touchscreen_ButtonHandler(void)
       {
         isTapLatched = true;
         eqEnabled = !eqEnabled;
-        LCD_UpdateEqSwitchButton();
+        LCD_UpdateSwitchButton(&eqSwitchButton, eqEnabled);
         FlashPersistence_WriteSettings(CurrentDisplay());
       }
 

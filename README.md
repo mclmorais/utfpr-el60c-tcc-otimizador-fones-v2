@@ -13,6 +13,7 @@ O projeto visa reduzir gargalos no processo de entrega de áudio, desde o envio 
 - **Interface Touchscreen**: Permite ajuste visual e interativo dos parâmetros de equalização
 - **Persistência de Configurações**: Salva as configurações de equalização na memória flash
 - **31 Bandas de Equalização**: Equalizador gráfico de 1/3 de oitava, com as frequências centrais da ISO 266, de 20 Hz a 20 kHz
+- **Virtualização**: Crossfeed que tira o som de dentro da cabeça e o faz parecer vindo de caixas de som à frente
 - **Alta Qualidade**: Conversão e amplificação de alta qualidade para melhor fidelidade sonora
 
 ## Hardware
@@ -35,10 +36,12 @@ O projeto foi desenvolvido para a placa de desenvolvimento **STM32F769I-Discover
 │   │   │   ├── audio_user_dsp.h
 │   │   │   ├── cycle_counter.h
 │   │   │   ├── dsp_module.h        # Contrato de um Módulo
-│   │   │   └── equalizer.h
+│   │   │   ├── equalizer.h
+│   │   │   └── virtualizer.h
 │   │   └── Src/
 │   │       ├── audio_user_dsp.c    # Cadeia de módulos e medição de ciclos
-│   │       └── equalizer.c         # Equalizador: filtros biquad de 31 Bandas
+│   │       ├── equalizer.c         # Equalizador: filtros biquad de 31 Bandas
+│   │       └── virtualizer.c       # Virtualização: Crossfeed e seus Presets
 │   ├── Persistence/            # Persistência de dados
 │   │   ├── Inc/
 │   │   │   └── flash_persistence.h
@@ -118,6 +121,7 @@ O sistema implementa:
 
 - **Filtros Biquad**: Filtros IIR (Infinite Impulse Response) de segunda ordem para equalização
 - **31 Bandas de Frequência**: Equalizador gráfico de 1/3 de oitava, de 20 Hz a 20 kHz
+- **Virtualização**: Crossfeed de primeira ordem no projeto do bs2b, antes do Equalizador (veja [Virtualização](#virtualização))
 - **Processamento em Tempo Real**: Processamento de amostras de áudio em tempo real via USB
 - **Formato PCM**: Suporte a áudio PCM estéreo (2 canais)
 
@@ -132,8 +136,8 @@ O sistema implementa:
 - **Armazenamento em Flash**: Configurações de equalização são salvas no setor 12 da flash, o primeiro setor do banco 2 (16 KB, endereço `0x08100000`). A flash fica em modo dual-bank. Assim, apagar esse setor não trava o código que roda do banco 1, e o áudio USB continua durante a gravação
 - **Restauração Automática**: Configurações são restauradas automaticamente na inicialização
 - **Marca de Formato**: A primeira palavra do setor guarda a marca `EQ31`. Os ajustes de 8 bandas salvos por versões antigas do firmware não têm essa marca e são descartados: todas as bandas começam em 0 dB
-- **Palavras do Setor**: depois da marca vêm os 31 ganhos, a rotação, o brilho, o modo escuro e a chave do Equalizador, uma palavra cada. Um setor gravado por um firmware mais antigo tem as palavras novas apagadas (`0xFFFFFFFF`), e cada uma delas mantém o comportamento antigo: tela sem rotação, brilho máximo, tema claro e Equalizador ligado
-- **Salvamento no Toque**: a rotação, o brilho, o modo escuro e a chave do Equalizador são salvos assim que tocados. Esse salvamento regrava os últimos ganhos salvos, nunca os ganhos na tela, então só o botão "Salvar" grava edições de ganho
+- **Palavras do Setor**: depois da marca vêm os 31 ganhos, a rotação, o brilho, o modo escuro, a chave do Equalizador e a chave da Virtualização, uma palavra cada. Um setor gravado por um firmware mais antigo tem as palavras novas apagadas (`0xFFFFFFFF`), e cada uma delas mantém o comportamento antigo: tela sem rotação, brilho máximo, tema claro, Equalizador ligado e Virtualização desligada
+- **Salvamento no Toque**: a rotação, o brilho, o modo escuro e as chaves do Equalizador e da Virtualização são salvos assim que tocados. Esse salvamento regrava os últimos ganhos salvos, nunca os ganhos na tela, então só o botão "Salvar" grava edições de ganho
 
 ## Como Compilar e Executar
 
@@ -217,7 +221,7 @@ As linhas abaixo de `dsp worst case` mostram quanto do orçamento de 1 ms por pa
 
 ### Testar o DSP no PC
 
-O script `tools/dsp_test.py` confere a resposta do equalizador sem a placa. Ele compila as fontes de `Application/DSP/` como biblioteca compartilhada com o compilador C do pacote `ziglang`, passa sinais de teste pela mesma função que o callback USB chama, pacote a pacote, e mede a saída com o numpy. Os ganhos e a chave do Equalizador são ajustados pelos mesmos `eqGains` e `eqEnabled` que a tela altera. O DSP lê o contador de ciclos DWT por `cycle_counter.h`, que o firmware implementa em `Application/User/Src/cycle_counter.c`. No PC, o substituto em `tools/dsp_pc/` sempre lê zero. Antes de medir, os testes reinicializam o DSP e descartam um segundo de pacotes.
+O script `tools/dsp_test.py` confere a resposta do Equalizador e da Virtualização sem a placa. Ele compila as fontes de `Application/DSP/` como biblioteca compartilhada com o compilador C do pacote `ziglang`, passa sinais de teste pela mesma função que o callback USB chama, pacote a pacote, e mede a saída com o numpy. Os ganhos, as chaves e o Preset são ajustados pelos mesmos `eqGains`, `eqEnabled`, `virtEnabled` e `crossfeedPreset` que a tela altera. O DSP lê o contador de ciclos DWT por `cycle_counter.h`, que o firmware implementa em `Application/User/Src/cycle_counter.c`. No PC, o substituto em `tools/dsp_pc/` sempre lê zero. Antes de medir, os testes reinicializam o DSP e descartam um segundo de pacotes.
 
 Instale as dependências pelo pip. As versões são fixas para que todos meçam com o mesmo compilador:
 
@@ -247,6 +251,15 @@ Os casos de hoje:
 - Com o Equalizador desligado e as bandas em ±6 dB, a saída é igual à entrada bit a bit.
 - Desligar e religar o Equalizador no pico de um tom de 1 kHz com a banda de 1 kHz em +6 dB não produz um salto entre amostras maior que o do próprio sinal, ligado ou desligado. Depois de religado, a saída é igual à de uma execução que nunca desligou, o que prova que os filtros acompanharam o sinal.
 - Cada banda sozinha em +6 dB mede +6 dB ± 0,1 dB na frequência central e segue a curva do Audio EQ Cookbook, também com tolerância de 0,1 dB, uma oitava para cada lado.
+
+Os casos da Virtualização leem a tabela `crossfeedPresets` do próprio DSP e rodam uma vez para cada Preset, com o Equalizador plano:
+
+- Os Presets da tabela têm o corte e o nível publicados, e o primeiro, que uma palavra apagada da flash carrega, é o Padrão.
+- Um sinal mono mede 0 dB ± 0,1 dB em 20 Hz e fica a 1 dB de 0 dB nas 31 frequências de 20 Hz a 20 kHz.
+- Um impulso só na esquerda aparece na direita filtrado por um passa-baixas. Em 20 Hz, o caminho cruzado fica abaixo do direto pelo nível do Preset (± 0,1 dB). Ele cai 3 dB a até 5% do corte e pelo menos 17 dB uma década acima, onde o caminho direto volta a até 1 dB de 0 dB.
+- Ruído estéreo com os canais trocados sai com os canais trocados, bit a bit.
+- Um seno mono em fundo de escala, na frequência em que o ganho mono é maior, sai a até 1 dB do nível de entrada e não se afasta da senoide mais do que 1% do fundo de escala.
+- Desligar e religar a Virtualização no pico de um tom de 250 Hz só na esquerda não produz um salto maior que o do próprio sinal. Depois de religada, a saída é igual à de uma execução que nunca desligou.
 
 ### Formatar e Analisar o Código
 
@@ -287,7 +300,7 @@ tools/lint.py tidy
 3. **Ajustar a Equalização**:
    - Toque no botão "EQ" para abrir a tela do equalizador
    - A tela mostra 8 bandas por vez, em 4 páginas: 20 Hz a 100 Hz, 125 Hz a 630 Hz, 800 Hz a 4 kHz e 5 kHz a 20 kHz
-   - Use os botões "<" e ">", à direita do botão "EQ", para trocar de página. Da última página, ">" volta para a primeira
+   - Use os botões "<" e ">", à direita dos botões "EQ" e "VIRT", para trocar de página. Da última página, ">" volta para a primeira
    - Arraste o slider de cada banda para ajustar o ganho, de -15 dB a +15 dB, em passos de 1 dB
    - Toque em "Salvar" para gravar os ajustes na flash, em "Desfazer" para voltar aos ajustes salvos e em "Redefinir" para voltar todas as bandas a 0 dB
    - O botão acima de "Salvar" liga e desliga o Equalizador. Verde e "Ligado", o som passa pelas Bandas; cinza e "Desligado", o som sai plano e os ganhos continuam na tela, prontos para quando ele for religado. A troca leva 1 ms e não faz clique. A escolha é salva na flash no toque
@@ -299,7 +312,19 @@ tools/lint.py tidy
 
    As capturas com o botão "180" verde foram feitas com a tela girada. A captura lê a memória de vídeo, que é a mesma nas duas orientações, porque quem gira a imagem é o painel
 
-4. **Conectar o Fone de Ouvido**:
+4. **Ligar a Virtualização**:
+   - Toque no botão "VIRT", ao lado do "EQ", para abrir a tela da Virtualização. Abrir uma das telas fecha a outra, e tocar de novo no botão aberto volta à tela inicial
+   - A tela mostra a Técnica (Crossfeed) e o Preset (Padrão: 700 Hz, 4,5 dB)
+   - O botão no alto da coluna da esquerda liga e desliga a Virtualização. Ligada, o som sai de dentro da cabeça e passa a vir da frente; desligada, cada canal sai só no seu lado. A troca leva 1 ms e não faz clique. A escolha é salva na flash no toque, e uma placa nova começa com a Virtualização desligada
+
+   | | Ligada | Desligada |
+   |---|---|---|
+   | Tema claro | ![Virtualização ligada, tema claro, tela girada em 180°](docs/capturas/virt-claro-ligado-180.png) | ![Virtualização desligada, tema claro, tela girada em 180°](docs/capturas/virt-claro-desligado-180.png) |
+   | Tema escuro | ![Virtualização ligada, tema escuro](docs/capturas/virt-escuro-ligado.png) | ![Virtualização desligada, tema escuro](docs/capturas/virt-escuro-desligado.png) |
+
+   ![Tela inicial com os botões "EQ" e "VIRT", tema escuro](docs/capturas/inicio-escuro.png)
+
+5. **Conectar o Fone de Ouvido**:
    - Conecte o fone de ouvido na saída de áudio da placa
    - O áudio processado será reproduzido através do fone
 
@@ -320,9 +345,27 @@ O sistema utiliza filtros biquad do tipo "peaking equalizer" para cada banda de 
 - **Frequência Central**: 31 frequências da ISO 266, de 20 Hz a 20 kHz, em passos de 1/3 de oitava
 - **Largura de Banda**: 1/3 de oitava em todas as bandas
 
+### Virtualização
+
+No fone, cada ouvido escuta só o seu canal, e o som parece vir de dentro da cabeça. Com caixas de som, cada ouvido escuta também a caixa do outro lado, mais baixa nos graves e quase nada nos agudos, porque a cabeça faz sombra para as frequências altas. Benjamin Bauer propôs em 1961 imitar isso no fone com um circuito que leva a cada ouvido uma cópia filtrada do canal oposto. Essa Técnica é o Crossfeed. O bs2b (Bauer stereophonic-to-binaural DSP), de Boris Mikhaylov, é a versão digital mais usada dessa ideia, e a Virtualização segue o seu projeto.
+
+O canal oposto passa por um passa-baixas de primeira ordem no corte do Preset e chega ao ouvido o nível do Preset abaixo do canal direto nos graves. O canal do mesmo lado passa por um realce de agudos de primeira ordem, que devolve aos agudos o volume que o canal cedeu ao lado oposto nos graves. Um Preset é o par de corte e nível. Hoje só existe o Padrão do bs2b, com 700 Hz e 4,5 dB.
+
+O bs2b escolhe o corte e o ganho do realce de agudos por fórmulas próprias e normaliza o volume nos graves. Com essa escolha, um sinal mono sai 1,8 dB mais baixo nos agudos com o Padrão (medido pelo `tools/dsp_test.py` com o bs2b copiado ao pé da letra), e o ADR 0001 pede o mesmo volume mono com o Módulo ligado ou desligado. Por isso a Virtualização usa o mesmo filtro de realce do bs2b com o corte e o ganho do passa-baixas. Assim o realce é o complemento exato do passa-baixas, e o canal direto e o cruzado somam 1 em todas as frequências:
+
+```
+G = r / (1 + r), com r = 10^(-nível / 20)      (cruzado / direto = r nos graves)
+esquerda = esquerda + G · passa_baixas(direita - esquerda)
+direita  = direita  - G · passa_baixas(direita - esquerda)
+```
+
+As duas saídas usam um único passa-baixas, aplicado à diferença entre os canais. Um sinal mono não tem diferença e sai igual, bit a bit, e um sinal com os canais trocados sai com os canais trocados, também bit a bit. A sonda mede 3.233 ciclos por pacote para a Virtualização, 1,5% do orçamento. A conta inclui a cópia do sinal sem processamento que a chave da Cadeia usa.
+
+A Técnica fica num campo próprio (`virtTechnique`), para que os Alto-falantes virtuais entrem depois como outra Técnica. O Preset é um índice na tabela `crossfeedPresets`. Trocar o índice com a música tocando troca os coeficientes no pacote seguinte.
+
 ### Arquitetura de Processamento
 
-O callback de USB OUT entrega cada pacote, com quadros estéreo de 16 bits intercalados, a `AudioUserDsp_Process`, que o processa no lugar. Ela separa o pacote em dois blocos `float`, esquerdo e direito, e passa os dois blocos juntos por cada Módulo da Cadeia, em ordem. Só depois do último Módulo ela satura para 16 bits e intercala de volta; nenhum Módulo satura no meio da Cadeia. A Cadeia é uma lista fixa, definida em tempo de compilação em `audio_user_dsp.c`. Hoje ela tem só o Equalizador.
+O callback de USB OUT entrega cada pacote, com quadros estéreo de 16 bits intercalados, a `AudioUserDsp_Process`, que o processa no lugar. Ela separa o pacote em dois blocos `float`, esquerdo e direito, e passa os dois blocos juntos por cada Módulo da Cadeia, em ordem. Só depois do último Módulo ela satura para 16 bits e intercala de volta; nenhum Módulo satura no meio da Cadeia. A Cadeia é uma lista fixa, definida em tempo de compilação em `audio_user_dsp.c`: primeiro a Virtualização, depois o Equalizador.
 
 Cada Módulo tem uma chave de liga e desliga, e quem a aplica é a Cadeia. Ela roda o Módulo mesmo desligado, para que o histórico dos filtros acompanhe o sinal, e então guarda ou descarta a saída. No pacote em que a chave muda, a saída passa em linha reta do sinal sem processamento para o processado, ou ao contrário, ao longo do pacote (1 ms), sem clique. Por isso o Módulo custa os mesmos ciclos ligado ou desligado.
 
@@ -330,9 +373,9 @@ Cada Módulo tem uma chave de liga e desliga, e quem a aplica é a Cadeia. Ela r
 flowchart LR
     A[USB Audio Input] --> B[Separa em blocos float<br/>esquerdo e direito]
     subgraph Cadeia[Cadeia de módulos]
-        C[Equalizador<br/>31 Bandas biquad]
+        V[Virtualização<br/>Crossfeed] --> C[Equalizador<br/>31 Bandas biquad]
     end
-    B --> C
+    B --> V
     C --> D[Satura para 16 bits<br/>e intercala]
     D --> E[I²S Output]
     E --> F[Codec]
@@ -362,6 +405,8 @@ As versões e os repositórios de origem estão em [Código da ST](#código-da-s
 - [STM32F769I-Discovery User Manual](https://www.st.com/en/evaluation-tools/stm32f769i-disco.html)
 - [USB Audio Class Specification](https://www.usb.org/documents)
 - [Audio EQ Cookbook](https://webaudio.github.io/Audio-EQ-Cookbook/audio-eq-cookbook.html)
+- B. B. Bauer, "Stereophonic Earphones and Binaural Loudspeakers", Journal of the Audio Engineering Society, vol. 9, n. 2, 1961
+- [bs2b, Bauer stereophonic-to-binaural DSP](https://bs2b.sourceforge.net/), de Boris Mikhaylov
 
 ## Troubleshooting
 
