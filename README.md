@@ -85,7 +85,26 @@ O código de áudio USB vem do pacote [X-CUBE-USB-AUDIO](https://www.st.com/en/e
 - `Application/USB_Device_Audio/` e `Application/Streaming/`
 - `Drivers/BSP/STM32F769I-Discovery/stm32f769i_discovery_audio_ex.*` e `Drivers/BSP/Components/wm8994/`
 
-Para atualizar um componente de `Drivers/`, copie os arquivos da nova tag por cima dos atuais, compile e teste o áudio USB na placa. Atualize também a versão nesta tabela. O HAL v1.3.0, por exemplo, mudou o tratamento de frames isócronos incompletos e exigiu uma mudança no `usbd_audio.c`.
+#### Atualizar o código da ST
+
+O script `tools/check_vendor.py` compara esta tabela com as versões que a última release do STM32CubeF7 usa. Ele termina com código 1 quando há atualização:
+
+```bash
+tools/check_vendor.py
+```
+
+O script não compara com a tag mais nova de cada repositório, porque algumas são de outra API. O `stm32-otm8009a`, por exemplo, já tem a v2.0.2, mas o STM32CubeF7 continua na v1.0.7. Atualize sempre para as versões de uma mesma release do STM32CubeF7, que a ST testou juntas.
+
+Para avisos de release novo, use **Watch → Custom → Releases** no [STM32CubeF7](https://github.com/STMicroelectronics/STM32CubeF7).
+
+Para atualizar:
+
+1. Copie os arquivos da nova tag de cada componente por cima dos atuais.
+2. Leia no `Release_Notes.html` de cada componente as mudanças desde a versão anterior, principalmente as dos módulos que o projeto usa: PCD/USB, SAI, I2C, DSI, LTDC e FLASH.
+3. Compile e rode `tools/usb_audio_probe.py` na placa.
+4. Atualize as versões nesta tabela.
+
+O teste na placa é obrigatório. O HAL v1.3.0, por exemplo, mudou o que o driver faz antes de chamar o `HAL_PCD_ISOOUTIncompleteCallback`. O código compilou sem aviso, mas o áudio parou até o `usbd_audio.c` ser corrigido.
 
 ## Funcionalidades Técnicas
 
@@ -173,6 +192,20 @@ O script `tools/lcd_capture.py` lê a imagem do LCD pelo ST-LINK e salva um PNG.
 ```bash
 tools/lcd_capture.py lcd.png
 ```
+
+### Testar o Áudio USB na Placa
+
+O script `tools/usb_audio_probe.py` grava o firmware e toca um tom baixo de 440 Hz no dispositivo de áudio da placa. Enquanto o tom toca, ele lê pelo ST-LINK o estado da sessão de playback e do nó do alto-falante. O teste passa quando os dois estão em `STARTED`. Ele precisa dos dois cabos USB (ST-LINK e USB OTG) e das bibliotecas sounddevice e numpy:
+
+```bash
+pip install sounddevice numpy
+```
+
+```bash
+tools/usb_audio_probe.py
+```
+
+Sem argumento, ele usa o `build/Debug/horoscope.elf`. A linha `idle` mostra o estado antes do tom. Ela já aparece como `STARTED` se outro programa estiver tocando áudio na placa.
 
 ### Formatar e Analisar o Código
 
