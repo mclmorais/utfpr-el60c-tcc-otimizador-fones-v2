@@ -17,6 +17,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/USB_Device_Audio/Src/usbd_ctlreq.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/USB_Device_Audio/Src/usbd_desc.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/USB_Device_Audio/Src/usbd_ioreq.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Application/User/Src/cycle_counter.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/User/Src/main.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/User/Src/stm32f7xx_hal_msp.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/User/Src/stm32f7xx_it.c"

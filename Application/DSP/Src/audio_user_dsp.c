@@ -1,4 +1,5 @@
 #include "audio_user_dsp.h"
+#include "cycle_counter.h"
 #include <math.h>
 
 #define PI                     3.14159265358979323846
@@ -55,6 +56,7 @@ const EqBand eqBands[EQ_BAND_COUNT] = {
 };
 
 volatile int16_t eqGains[EQ_BAND_COUNT];
+volatile uint32_t dspWorstCaseCycles;
 
 static DoubleBiquad lowFilters[DOUBLE_PRECISION_BAND_COUNT];
 static FloatBiquad highFilters[SINGLE_PRECISION_BAND_COUNT];
@@ -96,6 +98,9 @@ static void AudioUserDsp_BuildBand(uint32_t band, int16_t gain)
 
 void AudioUserDsp_Init(void)
 {
+  CycleCounter_Init();
+  dspWorstCaseCycles = 0;
+
   for(uint32_t i = 0; i < DOUBLE_PRECISION_BAND_COUNT; i++)
     lowFilters[i] = (DoubleBiquad){0};
   for(uint32_t i = 0; i < SINGLE_PRECISION_BAND_COUNT; i++)
@@ -146,6 +151,8 @@ static float AudioUserDsp_RunHighBands(float sample, uint32_t channel)
 
 void AudioUserDsp_Process(uint8_t* frames, uint32_t length)
 {
+  uint32_t startCycles = CycleCounter_Read();
+
   // A rebuild costs several libm calls; one band per packet keeps the ISR
   // inside its 1 ms budget, and the remaining bands converge on later packets.
   for(uint32_t i = 0; i < EQ_BAND_COUNT; i++)
@@ -176,4 +183,8 @@ void AudioUserDsp_Process(uint8_t* frames, uint32_t length)
       bytes[1] = result >> 8;
     }
   }
+
+  uint32_t elapsedCycles = CycleCounter_Read() - startCycles;
+  if(elapsedCycles > dspWorstCaseCycles)
+    dspWorstCaseCycles = elapsedCycles;
 }

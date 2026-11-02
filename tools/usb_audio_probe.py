@@ -4,7 +4,8 @@
 Flashes the firmware, plays a quiet 440 Hz tone to the board's USB audio
 device and reads, over ST-LINK in hot-plug mode, the state of the playback
 session and of the speaker node. The test passes when both are STARTED while
-the tone plays. Run it after updating the HAL or the USB code: a build that
+the tone plays. It also reports the worst-case DSP cycles per packet the firmware
+measured with the DWT cycle counter, against the 1 ms packet budget. Run it after updating the HAL or the USB code: a build that
 compiles cleanly can still leave the speaker silent.
 
 Needs the board on both USB cables (ST-LINK and USB OTG) and the Python
@@ -33,6 +34,9 @@ STREAM_START_SECONDS = 6
 # AUDIO_Session_t.state sits after the node_list pointer; AUDIO_Node_t.state is the first field.
 SESSION = ("USB_AudioPlabackSession", 4)
 SPEAKER_NODE = ("PlaybackSpeakerOutputNode", 0)
+WORST_CASE_CYCLES = "dspWorstCaseCycles"
+CPU_HZ = 216_000_000
+PACKET_BUDGET_CYCLES = CPU_HZ // 1000
 STATES = ["OFF", "INITIALIZED", "STARTED", "STOPPED", "ERROR"]
 
 
@@ -56,6 +60,11 @@ def read_state(addresses, field):
     out = programmer("mode=HOTPLUG", "-r32", hex(addresses[symbol] + offset), "4")
     value = int(re.search(r"^0x[0-9A-F]+ : ([0-9A-F]{8})", out, re.MULTILINE).group(1), 16)
     return STATES[value] if value < len(STATES) else hex(value)
+
+
+def read_word(addresses, symbol, offset=0):
+    out = programmer("mode=HOTPLUG", "-r32", hex(addresses[symbol] + offset), "4")
+    return int(re.search(r"^0x[0-9A-F]+ : ([0-9A-F]{8})", out, re.MULTILINE).group(1), 16)
 
 
 def play_tone(sd, np):
@@ -85,9 +94,12 @@ def main():
     time.sleep(STREAM_START_SECONDS)
     playing = (read_state(addresses, SESSION), read_state(addresses, SPEAKER_NODE))
     player.join()
+    worst_cycles = read_word(addresses, WORST_CASE_CYCLES)
 
     print(f"idle:    session={idle[0]} speaker={idle[1]}")
     print(f"playing: session={playing[0]} speaker={playing[1]}")
+    print(f"dsp worst case: {worst_cycles} cycles per packet "
+          f"({100 * worst_cycles / PACKET_BUDGET_CYCLES:.1f}% of the {PACKET_BUDGET_CYCLES}-cycle 1 ms budget)")
     passed = playing == ("STARTED", "STARTED")
     print("PASS" if passed else "FAIL: the speaker did not start while the tone played")
     sys.exit(0 if passed else 1)

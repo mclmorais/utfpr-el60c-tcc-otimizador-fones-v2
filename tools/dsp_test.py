@@ -28,6 +28,8 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DSP_DIR = os.path.join(ROOT, "Application", "DSP")
+# Stand-ins for the board code the DSP calls, such as the DWT cycle counter.
+PC_STUBS_DIR = os.path.join(ROOT, "tools", "dsp_pc")
 BUILD_DIR = os.path.join(ROOT, "build", "pc")
 
 SAMPLE_RATE = 48000
@@ -63,7 +65,7 @@ def build():
     os.makedirs(BUILD_DIR, exist_ok=True)
     suffix = {"win32": ".dll", "darwin": ".dylib"}.get(sys.platform, ".so")
     library = os.path.join(BUILD_DIR, "dsp" + suffix)
-    sources = sorted(glob.glob(os.path.join(DSP_DIR, "Src", "*.c")))
+    sources = sorted(glob.glob(os.path.join(DSP_DIR, "Src", "*.c")) + glob.glob(os.path.join(PC_STUBS_DIR, "*.c")))
     command = [sys.executable, "-m", "ziglang", "cc", "-shared", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror"]
     command += ["-I", os.path.join(DSP_DIR, "Inc"), *sources, "-o", library]
     result = subprocess.run(command, capture_output=True, text=True)
