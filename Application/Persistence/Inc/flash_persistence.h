@@ -10,10 +10,16 @@
 #define FLASH_USER_START_ADDR 0x08100000
 #define FLASH_USER_SECTOR FLASH_SECTOR_12
 
-void FlashPersistence_Write(bool isFlipped);
-void FlashPersistence_WriteFlip(bool isFlipped);
+typedef struct DisplaySettings
+{
+    bool isFlipped;
+    uint8_t brightness; // percent
+} DisplaySettings;
+
+void FlashPersistence_Write(DisplaySettings display);
+void FlashPersistence_WriteDisplay(DisplaySettings display);
 void FlashPersistence_Restore();
-bool FlashPersistence_ReadFlip();
+DisplaySettings FlashPersistence_ReadDisplay();
 
 
 #endif // __FLASH_PERSISTENCE_H
