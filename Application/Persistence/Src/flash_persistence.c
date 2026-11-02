@@ -82,17 +82,20 @@ void FlashPersistence_WriteSettings(DisplaySettings display)
   WriteSector(savedGains, display);
 }
 
-void FlashPersistence_Restore()
+void FlashPersistence_RestoreGains()
 {
   for(uint32_t i = 0; i < EQ_BAND_COUNT; i++)
     eqGains[i] = ReadSavedGain(i);
 }
 
-void FlashPersistence_RestoreModuleSwitches()
+void FlashPersistence_Restore()
 {
-  eqEnabled = SavedGainScale() == 0 || words[FLASH_EQ_ENABLED_WORD] != 0;
-  virtEnabled = SavedGainScale() != 0 && words[FLASH_VIRT_ENABLED_WORD] == 1;
-  crossfeedPreset = SavedGainScale() != 0 && words[FLASH_CROSSFEED_PRESET_WORD] < CROSSFEED_PRESET_COUNT
+  FlashPersistence_RestoreGains();
+
+  bool hasSavedSettings = SavedGainScale() != 0;
+  eqEnabled = !hasSavedSettings || words[FLASH_EQ_ENABLED_WORD] != 0;
+  virtEnabled = hasSavedSettings && words[FLASH_VIRT_ENABLED_WORD] == 1;
+  crossfeedPreset = hasSavedSettings && words[FLASH_CROSSFEED_PRESET_WORD] < CROSSFEED_PRESET_COUNT
                         ? (uint8_t)words[FLASH_CROSSFEED_PRESET_WORD]
                         : 0;
 }
