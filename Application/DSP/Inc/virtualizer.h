@@ -17,7 +17,7 @@ typedef struct CrossfeedPreset {
   float levelDb;
 } CrossfeedPreset;
 
-#define CROSSFEED_PRESET_COUNT 1
+#define CROSSFEED_PRESET_COUNT 3
 
 extern const CrossfeedPreset crossfeedPresets[CROSSFEED_PRESET_COUNT];
 extern const uint8_t crossfeedPresetCount;

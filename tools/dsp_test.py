@@ -435,6 +435,31 @@ def full_scale_mono_does_not_saturate(dsp):
 
 
 @case
+def changing_preset_while_playing_reaches_the_new_response(dsp):
+    """Switching Presets between packets, with noise playing, ends in the same output as starting on that Preset."""
+    rng = np.random.default_rng(3)
+    noise = rng.integers(-8000, 8000, size=(SAMPLE_RATE, 2), dtype=np.int16)
+    errors = []
+    for target in dsp.presets:
+        with virtualizer_on(dsp, target):
+            expected = dsp.process(noise)
+        for start in dsp.presets:
+            if start.index == target.index:
+                continue
+            with virtualizer_on(dsp, start):
+                dsp.process(noise[: SAMPLE_RATE // 2])
+                dsp.preset.value = target.index
+                output = dsp.process(noise)
+            tail = slice(-SAMPLE_RATE // 4, None)
+            worst = np.max(np.abs(output[tail].astype(int) - expected[tail].astype(int)))
+            if worst > 2:
+                errors.append(f"{start.name} to {target.name}: a quarter second later the output still differs "
+                              f"from {target.name} by up to {worst} LSB")
+    raise_errors(errors)
+    return []
+
+
+@case
 def switching_virtualizer_never_jumps_more_than_the_signal(dsp):
     """Off and back on with a 250 Hz tone on the left only, switched at its peak, where on and off differ most."""
     errors = []

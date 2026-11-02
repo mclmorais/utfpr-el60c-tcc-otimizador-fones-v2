@@ -5,7 +5,9 @@
 #define PI 3.14159265358979323846
 
 const CrossfeedPreset crossfeedPresets[CROSSFEED_PRESET_COUNT] = {
-  {"Padrao", 700, 4.5f},
+  {"Padrao",    700, 4.5f},
+  {"Chu Moy",   700, 6.0f},
+  {"Jan Meier", 650, 9.5f},
 };
 const uint8_t crossfeedPresetCount = CROSSFEED_PRESET_COUNT;
 
@@ -59,9 +61,9 @@ static void Virtualizer_Process(float* left, float* right, uint32_t frameCount)
 {
   switch(virtTechnique)
   {
-  case VIRTUALIZER_CROSSFEED:
-    Crossfeed_Process(left, right, frameCount);
-    break;
+    case VIRTUALIZER_CROSSFEED:
+      Crossfeed_Process(left, right, frameCount);
+      break;
   }
 }
 
