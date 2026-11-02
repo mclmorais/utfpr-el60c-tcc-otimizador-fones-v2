@@ -801,6 +801,18 @@ static uint8_t USBD_AUDIO_IsoINIncomplete(USBD_HandleTypeDef* pdev, uint8_t epnu
   */
 static uint8_t USBD_AUDIO_IsoOutIncomplete(USBD_HandleTypeDef* pdev, uint8_t epnum)
 {
+  USBD_AUDIO_EPTypeDef* ep;
+  uint8_t* pbuf;
+  uint16_t packet_length;
+
+  ep = &((USBD_AUDIO_HandleTypeDef*)pdev->pClassData)->ep_out[epnum];
+
+  // Since HAL v1.3.0 the PCD driver disables the endpoint on an incomplete frame, and the class has to arm it again.
+  if(ep->open)
+  {
+    pbuf = ep->ep_description.data_ep->GetBuffer(ep->ep_description.data_ep->private_data, &packet_length);
+    USBD_LL_PrepareReceive(pdev, epnum, pbuf, packet_length);
+  }
 
   return USBD_OK;
 }
