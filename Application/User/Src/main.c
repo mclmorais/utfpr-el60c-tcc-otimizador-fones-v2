@@ -75,8 +75,8 @@ int main(void)
 	HAL_Delay(1000);
 
 	USART1_UART_Init();
-	LCD_Init();
 	DisplaySettings display = FlashPersistence_ReadDisplay();
+	LCD_Init(display.isDark);
 	LCD_SetFlip(display.isFlipped);
 	LCD_SetBrightness(display.brightness);
 	Touchscreen_Init();

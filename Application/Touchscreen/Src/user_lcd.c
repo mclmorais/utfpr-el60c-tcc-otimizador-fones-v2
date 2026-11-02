@@ -39,24 +39,40 @@
 #define STEP_BUTTON_MARGIN 6
 #define STEP_BUTTON_GAP 4
 #define GAIN_TEXT_GAP 6
+#define MOON_RADIUS 14
+#define MOON_BITE_OFFSET_X 7
+#define MOON_BITE_OFFSET_Y 5
+#define LOGO_INK_BLUE 24
+#define LOGO_YELLOW 0xFFCF00
 
 // private function declarations --------------------------------------
 static void     LCD_LayertInit(uint16_t LayerIndex, uint32_t Address);
 static void     Display_StartupScreen(void);
-static uint8_t  CopyImageToLcdFrameBuffer(void *pSrc, void *pDst, uint32_t xSize, uint32_t ySize, uint16_t x, uint16_t y);
+static void     SelectTheme(bool isDark);
+static void     DrawLogo(uint16_t x, uint16_t y);
+static void     LCD_UpdateDarkModeButton(void);
 static void     LCD_UpdateBrightnessButton(void);
 
 // variables ----------------------------------------------------------
+typedef struct LcdTheme
+{
+  uint32_t background;
+  uint32_t foreground;
+  uint32_t buttonIdle;
+  uint32_t buttonActive;
+} LcdTheme;
+
+static const LcdTheme themes[] = {
+  {LCD_COLOR_WHITE, LCD_COLOR_BLACK, LCD_COLOR_LIGHTGRAY, LCD_COLOR_LIGHTGREEN},
+  {0xFF202020, 0xFFF0F0F0, 0xFF404040, 0xFF2E7D32}
+};
+static const LcdTheme* theme = &themes[0];
+
 // !! THE NUMBER_OF_CIRCLE_BUTTONS DEFINE HAS TO BE UP TO DATE WITH THE NUMBER OF BUTTONS DEFINED HERE
 CircleButtonTypeDef circleButtons[] = {
-  //  x,   y,  r,               color,       text color,        on,     off,  pressed, independent, active
-  { 100, 440, 30, LCD_COLOR_BURGUNDY,   LCD_COLOR_BLACK, "EQ",     "",       false,     false,      false, 0},
-  { 150, 440, 30, LCD_COLOR_BURGUNDY,   LCD_COLOR_BLACK, "Vol",     "",       false,     false,      false, 0},
-  // { 250, 420, 50, LCD_COLOR_MINT_GREEN, LCD_COLOR_BLACK, "Volume",  "",       false,    false,      false},
-  // { 400, 420, 50, LCD_COLOR_MINT_GREEN, LCD_COLOR_BLACK, "Low Pass",     "",       false,    false,      false},
-  // { 550, 420, 50, LCD_COLOR_MINT_GREEN, LCD_COLOR_BLACK, "Biquad",     "",       false,    false,      false},
-  // { 700, 420, 50, LCD_COLOR_MINT_GREEN, LCD_COLOR_BLACK, "NYI",     "",       false,    false,      false},
-  // { 650, 120, 50, LCD_COLOR_LIGHTBLUE,  LCD_COLOR_BLACK, "Sending", "Debug",  false,    true,       false}
+  //  x,   y,  r,   on,     off,  pressed, independent, active
+  { 100, 440, 30, "EQ",  "", false, false, false, 0},
+  { 150, 440, 30, "Vol", "", false, false, false, 0},
 };
 
 RectangleButton saveButton = {
@@ -64,8 +80,6 @@ RectangleButton saveButton = {
   .y = 200,
   .width = 180,
   .height = 50,
-  .inactiveColor = LCD_COLOR_LIGHTGRAY,
-  .activeColor = LCD_COLOR_LIGHTGREEN,
   .text = "Salvar",
   .isPressed = false,
   .isActive = false
@@ -76,8 +90,6 @@ RectangleButton undoButton = {
   .y = 200 + 60,
   .width = 180,
   .height = 50,
-  .inactiveColor = LCD_COLOR_LIGHTGRAY,
-  .activeColor = LCD_COLOR_LIGHTGREEN,
   .text = "Desfazer",
   .isPressed = false,
   .isActive = false
@@ -89,8 +101,6 @@ RectangleButton resetButton = {
   .y = 200 + 60 + 60,
   .width = 180,
   .height = 50,
-  .inactiveColor = LCD_COLOR_LIGHTGRAY,
-  .activeColor = LCD_COLOR_LIGHTGREEN,
   .text = "Redefinir",
   .isPressed = false,
   .isActive = false
@@ -102,8 +112,6 @@ RectangleButton previousPageButton = {
   .y = 415,
   .width = 45,
   .height = 50,
-  .inactiveColor = LCD_COLOR_LIGHTGRAY,
-  .activeColor = LCD_COLOR_LIGHTGREEN,
   .text = "<",
   .isPressed = false,
   .isActive = false
@@ -114,8 +122,6 @@ RectangleButton nextPageButton = {
   .y = 415,
   .width = 45,
   .height = 50,
-  .inactiveColor = LCD_COLOR_LIGHTGRAY,
-  .activeColor = LCD_COLOR_LIGHTGREEN,
   .text = ">",
   .isPressed = false,
   .isActive = false
@@ -126,8 +132,6 @@ RectangleButton flipButton = {
   .y = 415,
   .width = 56,
   .height = 50,
-  .inactiveColor = LCD_COLOR_LIGHTGRAY,
-  .activeColor = LCD_COLOR_LIGHTGREEN,
   .text = "180",
   .isPressed = false,
   .isActive = false
@@ -142,9 +146,17 @@ RectangleButton brightnessButton = {
   .y = 355,
   .width = 56,
   .height = 50,
-  .inactiveColor = LCD_COLOR_LIGHTGRAY,
-  .activeColor = LCD_COLOR_LIGHTGREEN,
   .text = brightnessText,
+  .isPressed = false,
+  .isActive = false
+};
+
+RectangleButton darkModeButton = {
+  .x = 738,
+  .y = 295,
+  .width = 56,
+  .height = 50,
+  .text = "",
   .isPressed = false,
   .isActive = false
 };
@@ -152,14 +164,14 @@ RectangleButton brightnessButton = {
 static uint8_t eqPage = 0;
 
 SliderKnob sliderKnobs[] = {
-  { 200 + 50, 70, 60, 320, LCD_COLOR_BLACK, 230, 20, 5, 7},
-  { 200 + 110, 70, 60, 320, LCD_COLOR_BLACK, 230, 20, 5, 7},
-  { 200 + 170, 70, 60, 320, LCD_COLOR_BLACK, 230, 20, 5, 7},
-  { 200 + 230, 70, 60, 320, LCD_COLOR_BLACK, 230, 20, 5, 7},
-  { 200 + 290, 70, 60, 320, LCD_COLOR_BLACK, 230, 20, 5, 7},
-  { 200 + 350, 70, 60, 320, LCD_COLOR_BLACK, 230, 20, 5, 7},
-  { 200 + 410, 70, 60, 320, LCD_COLOR_BLACK, 230, 20, 5, 7},
-  { 200 + 470, 70, 60, 320, LCD_COLOR_BLACK, 230, 20, 5, 7}
+  { 200 + 50, 70, 60, 320, 230, 20, 5, 7},
+  { 200 + 110, 70, 60, 320, 230, 20, 5, 7},
+  { 200 + 170, 70, 60, 320, 230, 20, 5, 7},
+  { 200 + 230, 70, 60, 320, 230, 20, 5, 7},
+  { 200 + 290, 70, 60, 320, 230, 20, 5, 7},
+  { 200 + 350, 70, 60, 320, 230, 20, 5, 7},
+  { 200 + 410, 70, 60, 320, 230, 20, 5, 7},
+  { 200 + 470, 70, 60, 320, 230, 20, 5, 7}
 };
 
 // external variable declarations -------------------------------------
@@ -171,10 +183,10 @@ extern LTDC_HandleTypeDef hltdc_discovery;
  *     - DSI ititialization
  *     - LTDC ititialization
  *     - OTM8009A LCD Display IC Driver ititialization
- * @param  None
+ * @param  isDark: theme drawn from the first frame, so a saved dark mode never flashes white
  * @retval LCD state
  */
-void LCD_Init(void)
+void LCD_Init(bool isDark)
 {
   uint8_t lcd_status = LCD_OK;
 
@@ -187,7 +199,7 @@ void LCD_Init(void)
 
   BSP_LCD_LayerDefaultInit(0, LCD_FB_START_ADDRESS);
 
-  BSP_LCD_Clear(LCD_COLOR_WHITE);
+  SelectTheme(isDark);
 
   // The OTM8009A driver turns on content adaptive brightness, which rescales the backlight from the image and would fight LCD_SetBrightness.
   uint8_t cabcOff[] = {OTM8009A_CMD_WRCABC, 0x00};
@@ -232,8 +244,8 @@ static void Display_StartupScreen(void)
   BSP_LCD_SelectLayer(0);
 
   // clears the lcd
-  BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
-  BSP_LCD_Clear(LCD_COLOR_WHITE);
+  BSP_LCD_SetBackColor(theme->background);
+  BSP_LCD_Clear(theme->background);
 
   LCD_UpdateState();
 }
@@ -257,10 +269,10 @@ void LCD_UpdateState()
     // default state: displays background
 
     // clears display
-    BSP_LCD_Clear(LCD_COLOR_WHITE);
+    BSP_LCD_Clear(theme->background);
 
     // displays logo
-    BSP_LCD_DrawPicture(utfprlogo, UTFPR_LOGO_WIDTH, UTFPR_LOGO_HEIGHT, 20, 20);
+    DrawLogo(20, 20);
 
     // displays background yellow line
     BSP_LCD_SetFont(&Font24);
@@ -278,15 +290,15 @@ void LCD_UpdateState()
   for(uint8_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++)
   {
     // draws button border
-    BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+    BSP_LCD_SetTextColor(theme->foreground);
     BSP_LCD_FillCircle(circleButtons[i].x, circleButtons[i].y, circleButtons[i].radius);
 
     // draws button inner circle
-    BSP_LCD_SetTextColor(circleButtons[i].isPressed ? LCD_COLOR_LIGHTGREEN : LCD_COLOR_LIGHTGRAY);
+    BSP_LCD_SetTextColor(circleButtons[i].isPressed ? theme->buttonActive : theme->buttonIdle);
     BSP_LCD_FillCircle(circleButtons[i].x, circleButtons[i].y, circleButtons[i].radius - 3);
 
-    BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
-    BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
+    BSP_LCD_SetTextColor(theme->foreground);
+    BSP_LCD_SetBackColor(theme->background);
     BSP_LCD_DisplayStringAt(circleButtons[i].x - circleButtons[i].radius - 12, circleButtons[i].y - circleButtons[i].radius - 24, (uint8_t *)circleButtons[i].onText, LEFT_MODE);
 
 
@@ -294,6 +306,7 @@ void LCD_UpdateState()
 
   LCD_UpdateRectangleButton(&flipButton);
   LCD_UpdateBrightnessButton();
+  LCD_UpdateDarkModeButton();
 }
 
 static void LCD_UpdateBrightnessButton(void)
@@ -340,75 +353,72 @@ void LCD_SetFlip(bool isFlipped)
   LCD_UpdateRectangleButton(&flipButton);
 }
 
-/**
- * @brief  Copy and convert image (LAYER_SIZE_X, LAYER_SIZE_Y) of format RGB565
- * to LCD frame buffer area centered in WVGA resolution.
- * The area of copy is of size (LAYER_SIZE_X, LAYER_SIZE_Y) in ARGB8888.
- * @param  pSrc: Pointer to source buffer : source image buffer start here
- * @param  pDst: Pointer to destination buffer LCD frame buffer center area start here
- * @param  xSize: Buffer width (LAYER_SIZE_X here)
- * @param  ySize: Buffer height (LAYER_SIZE_Y here)
- * @retval LCD Status : LCD_OK or LCD_ERROR
- */
-static uint8_t CopyImageToLcdFrameBuffer(void *pSrc, void *pDst, uint32_t xSize, uint32_t ySize, uint16_t x, uint16_t y)
+static void SelectTheme(bool isDark)
 {
+  theme = &themes[isDark];
+  darkModeButton.isActive = isDark;
+}
 
-  uint32_t destination = (uint32_t)pDst + (y * 800 + x) * 4;
-  DMA2D_HandleTypeDef hdma2d_discovery;
-  HAL_StatusTypeDef hal_status = HAL_OK;
-  uint8_t lcd_status = LCD_ERROR;
+void LCD_SetDarkMode(bool isDark)
+{
+  SelectTheme(isDark);
+  Display_StartupScreen();
+}
 
-  // Configure the DMA2D Mode, Color Mode and output offset
-  hdma2d_discovery.Init.Mode         = DMA2D_M2M_PFC;
-  hdma2d_discovery.Init.ColorMode    = DMA2D_OUTPUT_ARGB8888;// Output color out of PFC
-  hdma2d_discovery.Init.AlphaInverted = DMA2D_REGULAR_ALPHA; // No Output Alpha Inversion
-  hdma2d_discovery.Init.RedBlueSwap   = DMA2D_RB_REGULAR;// No Output Red & Blue swap
+static void LCD_UpdateDarkModeButton(void)
+{
+  LCD_UpdateRectangleButton(&darkModeButton);
 
-  // Output offset in pixels == nb of pixels to be added at end of line to come to the
-  // first pixel of the next line : on the output side of the DMA2D computation
-  // TODO: GENERALIZE
-  hdma2d_discovery.Init.OutputOffset = (WVGA_RES_X - UTFPR_LOGO_WIDTH);
+  // A crescent: the second disc is cut out in the button's own fill.
+  uint16_t centerX = darkModeButton.x + darkModeButton.width / 2;
+  uint16_t centerY = darkModeButton.y + darkModeButton.height / 2;
+  BSP_LCD_SetTextColor(theme->foreground);
+  BSP_LCD_FillCircle(centerX, centerY, MOON_RADIUS);
+  BSP_LCD_SetTextColor(darkModeButton.isActive ? theme->buttonActive : theme->buttonIdle);
+  BSP_LCD_FillCircle(centerX + MOON_BITE_OFFSET_X, centerY - MOON_BITE_OFFSET_Y, MOON_RADIUS);
+}
 
-  // Foreground Configuration
-  hdma2d_discovery.LayerCfg[1].AlphaMode = DMA2D_NO_MODIF_ALPHA;
-  hdma2d_discovery.LayerCfg[1].InputAlpha = 0xFF; // fully opaque
-  hdma2d_discovery.LayerCfg[1].InputColorMode = DMA2D_INPUT_RGB565;
-  hdma2d_discovery.LayerCfg[1].InputOffset = 0;
-  hdma2d_discovery.LayerCfg[1].RedBlueSwap = DMA2D_RB_REGULAR; // No ForeGround Red/Blue swap
-  hdma2d_discovery.LayerCfg[1].AlphaInverted = DMA2D_REGULAR_ALPHA; // No ForeGround Alpha inversion
+static int32_t Clamp255(int32_t value)
+{
+  return value < 0 ? 0 : value > 255 ? 255 : value;
+}
 
-  hdma2d_discovery.Instance = DMA2D;
-
-  // DMA2D Initialization
-  if(HAL_DMA2D_Init(&hdma2d_discovery) == HAL_OK)
+// utfprlogo blends paper white, ink and yellow. Recovering the three weights per pixel lets paper and ink follow the theme.
+static void DrawLogo(uint16_t x, uint16_t y)
+{
+  for(uint16_t row = 0; row < UTFPR_LOGO_HEIGHT; row++)
   {
-    if(HAL_DMA2D_ConfigLayer(&hdma2d_discovery, 1) == HAL_OK)
+    for(uint16_t column = 0; column < UTFPR_LOGO_WIDTH; column++)
     {
-      if (HAL_DMA2D_Start(&hdma2d_discovery, (uint32_t)pSrc, destination, xSize, ySize) == HAL_OK)
+      uint32_t i = row * UTFPR_LOGO_WIDTH + column;
+      uint16_t pixel = utfprlogo[2 * i] | (utfprlogo[2 * i + 1] << 8);
+      int32_t red = (((pixel >> 11) & 0x1F) * 255 + 15) / 31;
+      int32_t blue = ((pixel & 0x1F) * 255 + 15) / 31;
+
+      int32_t yellow = Clamp255(red - blue);
+      int32_t paper = Clamp255((blue - LOGO_INK_BLUE + LOGO_INK_BLUE * yellow / 255) * 255 / (255 - LOGO_INK_BLUE));
+      int32_t ink = Clamp255(255 - paper - yellow);
+
+      uint32_t color = 0xFF000000;
+      for(uint8_t shift = 0; shift <= 16; shift += 8)
       {
-        // Polling For DMA transfer
-        hal_status = HAL_DMA2D_PollForTransfer(&hdma2d_discovery, 10);
-        if(hal_status == HAL_OK)
-        {
-          // return good status on exit
-          lcd_status = LCD_OK;
-        }
+        uint32_t channel = (paper * ((theme->background >> shift) & 0xFF) + ink * ((theme->foreground >> shift) & 0xFF) + yellow * ((LOGO_YELLOW >> shift) & 0xFF)) / 255;
+        color |= channel << shift;
       }
+      BSP_LCD_DrawPixel(x + column, y + row, color);
     }
   }
-
-  return(lcd_status);
 }
 
 void LCD_UpdateRectangleButton(RectangleButton* button)
 {
-  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+  BSP_LCD_SetTextColor(theme->foreground);
   BSP_LCD_FillRect(button->x - BUTTON_BORDER_SIZE, button->y - BUTTON_BORDER_SIZE, button->width + (2*BUTTON_BORDER_SIZE), button->height + (2*BUTTON_BORDER_SIZE));
-  BSP_LCD_SetTextColor(button->isActive ? button->activeColor : button->inactiveColor);
+  BSP_LCD_SetTextColor(button->isActive ? theme->buttonActive : theme->buttonIdle);
   BSP_LCD_FillRect(button->x, button->y, button->width, button->height);
 
-  BSP_LCD_SetBackColor(button->isActive ? button->activeColor : button->inactiveColor);
-  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+  BSP_LCD_SetBackColor(button->isActive ? theme->buttonActive : theme->buttonIdle);
+  BSP_LCD_SetTextColor(theme->foreground);
   BSP_LCD_DisplayStringAt(button->x + 5, button->y + button->height / 2 - 6, (uint8_t *)button->text, LEFT_MODE);
 }
 
@@ -420,7 +430,7 @@ int8_t LCD_ColumnToBand(uint8_t column)
 
 static uint16_t StepButtonY(SliderKnob* knob, int8_t step)
 {
-  // The 2 px are the black frame drawn around the sliders.
+  // The 2 px are the frame drawn around the sliders.
   if(step > 0)
     return knob->sliderY - 2 - STEP_BUTTON_GAP - STEP_BUTTON_HEIGHT;
   return knob->sliderY + knob->sliderHeight + 2 + STEP_BUTTON_GAP;
@@ -438,13 +448,13 @@ static void LCD_DisplayStepButton(SliderKnob* knob, int8_t step)
   uint16_t width = knob->sliderWidth - 2 * STEP_BUTTON_MARGIN;
   sFONT* font = BSP_LCD_GetFont();
 
-  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+  BSP_LCD_SetTextColor(theme->foreground);
   BSP_LCD_FillRect(x - BUTTON_BORDER_SIZE, y - BUTTON_BORDER_SIZE, width + (2*BUTTON_BORDER_SIZE), STEP_BUTTON_HEIGHT + (2*BUTTON_BORDER_SIZE));
-  BSP_LCD_SetTextColor(LCD_COLOR_LIGHTGRAY);
+  BSP_LCD_SetTextColor(theme->buttonIdle);
   BSP_LCD_FillRect(x, y, width, STEP_BUTTON_HEIGHT);
 
-  BSP_LCD_SetBackColor(LCD_COLOR_LIGHTGRAY);
-  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+  BSP_LCD_SetBackColor(theme->buttonIdle);
+  BSP_LCD_SetTextColor(theme->foreground);
   BSP_LCD_DisplayStringAt(x + (width - font->Width) / 2, y + (STEP_BUTTON_HEIGHT - font->Height) / 2, (uint8_t *)(step > 0 ? "+" : "-"), LEFT_MODE);
 }
 
@@ -472,10 +482,10 @@ void LCD_DisplayEqPage(void)
   uint16_t frameHeight = first->sliderHeight + 4;
   uint16_t belowFrameY = frameY + frameHeight;
 
-  BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+  BSP_LCD_SetTextColor(theme->background);
   BSP_LCD_FillRect(frameX, 0, frameWidth, frameY);
   BSP_LCD_FillRect(frameX, belowFrameY, frameWidth, GainTextY(first) + Font16.Height - belowFrameY);
-  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+  BSP_LCD_SetTextColor(theme->foreground);
   BSP_LCD_FillRect(frameX, frameY, frameWidth, frameHeight);
 
   for(uint8_t column = 0; column < NUMBER_OF_SLIDER_BUTTONS; column++)
@@ -485,15 +495,15 @@ void LCD_DisplayEqPage(void)
 
     if(band < 0)
     {
-      BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+      BSP_LCD_SetTextColor(theme->background);
       BSP_LCD_FillRect(knob->sliderX, knob->sliderY, knob->sliderWidth, knob->sliderHeight);
       continue;
     }
 
     const char* label = eqBands[band].label;
     uint16_t labelWidth = strlen(label) * BSP_LCD_GetFont()->Width;
-    BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
-    BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+    BSP_LCD_SetBackColor(theme->background);
+    BSP_LCD_SetTextColor(theme->foreground);
     BSP_LCD_DisplayStringAt(knob->sliderX + (knob->sliderWidth - labelWidth) / 2, 0, (uint8_t *)label, LEFT_MODE);
 
     LCD_DisplayStepButton(knob, 1);
@@ -513,10 +523,10 @@ void LCD_InitSlider(uint8_t knobIndex)
 {
   SliderKnob* knob = &sliderKnobs[knobIndex];
 
-  BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+  BSP_LCD_SetTextColor(theme->background);
   BSP_LCD_FillRect(knob->sliderX, knob->sliderY, knob->sliderWidth, knob->sliderHeight);
 
-  BSP_LCD_SetTextColor(knob->sliderColor);
+  BSP_LCD_SetTextColor(theme->foreground);
   BSP_LCD_FillRect((knob->sliderX + (knob->sliderWidth / 2)-5), knob->sliderY + 10, 10, knob->sliderHeight - 20);
 }
 
@@ -528,17 +538,17 @@ void LCD_DisplayKnob(uint8_t knobIndex, int16_t gain)
   // clears the previous spot if it moved
   if(newKnobY != knob->knobY)
   {
-    BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+    BSP_LCD_SetTextColor(theme->background);
     BSP_LCD_FillRect(knob->sliderX + 3, knob->knobY - 5, knob->sliderWidth - 3, 12);
 
-    BSP_LCD_SetTextColor(knob->sliderColor);
+    BSP_LCD_SetTextColor(theme->foreground);
     BSP_LCD_FillRect((knob->sliderX + (knob->sliderWidth / 2)-5), knob->knobY - 5, 10, 12);
   }
 
-  BSP_LCD_SetTextColor(knob->sliderColor);
+  BSP_LCD_SetTextColor(theme->foreground);
   BSP_LCD_FillRect(knob->sliderX + 3, newKnobY - 5, knob->sliderWidth - 3, 12);
 
-  BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+  BSP_LCD_SetTextColor(theme->background);
   BSP_LCD_FillRect(knob->sliderX + 5, newKnobY - 3, knob->sliderWidth - 7, 8);
 
   knob->knobY = newKnobY;
@@ -552,10 +562,10 @@ void LCD_DisplayKnob(uint8_t knobIndex, int16_t gain)
   BSP_LCD_SetFont(&Font16);
   uint16_t textY = GainTextY(knob);
   uint16_t textWidth = strlen(text) * Font16.Width;
-  BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+  BSP_LCD_SetTextColor(theme->background);
   BSP_LCD_FillRect(knob->sliderX, textY, knob->sliderWidth, Font16.Height);
-  BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
-  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+  BSP_LCD_SetBackColor(theme->background);
+  BSP_LCD_SetTextColor(theme->foreground);
   BSP_LCD_DisplayStringAt(knob->sliderX + (knob->sliderWidth - textWidth) / 2, textY, (uint8_t *)text, LEFT_MODE);
   BSP_LCD_SetFont(font);
 }
@@ -593,16 +603,10 @@ void LCD_UpdateWatchdog (uint32_t* watchdogCounter)
 {
   char text[5];
   sprintf(text, "%04u", ((unsigned int)*watchdogCounter));
-  BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
-  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+  BSP_LCD_SetBackColor(theme->background);
+  BSP_LCD_SetTextColor(theme->foreground);
   BSP_LCD_DisplayStringAt(0, 0, (uint8_t *)text, RIGHT_MODE);
   *watchdogCounter = *watchdogCounter + 1;
   if(*watchdogCounter > 9999)
     *watchdogCounter = 0;
-}
-
-
-void BSP_LCD_DrawPicture(const uint8_t* image, uint32_t width, uint32_t height, uint32_t xPosition, uint32_t yPosition )
-{
-  CopyImageToLcdFrameBuffer((void*)image, (void*)(LCD_FRAME_BUFFER), width, height, xPosition, yPosition);
 }
