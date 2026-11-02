@@ -88,8 +88,7 @@ void LCD_SetDarkMode(bool isDark);
 
 extern CircleButtonTypeDef circleButtons[];
 extern SliderKnob sliderKnobs[];
-extern RectangleButton eqSwitchButton;
-extern RectangleButton virtSwitchButton;
+extern RectangleButton moduleSwitchButton;
 extern RectangleButton presetButtons[];
 extern RectangleButton saveButton;
 extern RectangleButton resetButton;

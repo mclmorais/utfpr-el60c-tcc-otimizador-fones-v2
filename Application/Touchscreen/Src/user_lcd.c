@@ -84,18 +84,8 @@ CircleButtonTypeDef circleButtons[NUMBER_OF_CIRCLE_BUTTONS] = {
   [VIRT_CIRCLE_BUTTON] = {108, 440, 30, "VIRT", "", false, false, false, 0},
 };
 
-// Each Module screen has its switch in the same slot, above Salvar.
-RectangleButton eqSwitchButton = {
-  .x = 20,
-  .y = 200 - 60,
-  .width = 180,
-  .height = 50,
-  .text = "",
-  .isPressed = false,
-  .isActive = false,
-};
-
-RectangleButton virtSwitchButton = {
+// The switch of the Module on screen; each Module screen has it in the same slot, above Salvar.
+RectangleButton moduleSwitchButton = {
   .x = 20,
   .y = 200 - 60,
   .width = 180,
@@ -298,7 +288,7 @@ static void Display_StartupScreen(void)
 
 static void LCD_DisplayVirtualizerPage(void)
 {
-  LCD_UpdateSwitchButton(&virtSwitchButton, virtEnabled);
+  LCD_UpdateSwitchButton(&moduleSwitchButton, virtEnabled);
 
   const CrossfeedPreset* preset = &crossfeedPresets[crossfeedPreset];
   char text[40];
@@ -340,7 +330,7 @@ void LCD_UpdateState()
     LCD_DisplayEqPage();
 
     // displays option buttons
-    LCD_UpdateSwitchButton(&eqSwitchButton, eqEnabled);
+    LCD_UpdateSwitchButton(&moduleSwitchButton, eqEnabled);
     LCD_UpdateRectangleButton(&saveButton);
     LCD_UpdateRectangleButton(&resetButton);
     LCD_UpdateRectangleButton(&undoButton);
