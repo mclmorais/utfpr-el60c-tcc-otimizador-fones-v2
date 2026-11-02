@@ -20,7 +20,6 @@ typedef struct CrossfeedPreset {
 #define CROSSFEED_PRESET_COUNT 3
 
 extern const CrossfeedPreset crossfeedPresets[CROSSFEED_PRESET_COUNT];
-extern const uint8_t crossfeedPresetCount;
 
 extern volatile bool virtEnabled;
 extern volatile VirtualizerTechnique virtTechnique;

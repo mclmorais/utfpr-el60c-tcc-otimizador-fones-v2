@@ -20,6 +20,7 @@ import argparse
 import ctypes
 import glob
 import os
+import re
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -95,6 +96,12 @@ class Preset:
 PUBLISHED_PRESETS = {"Padrao": (700, 4.5), "Chu Moy": (700, 6.0), "Jan Meier": (650, 9.5)}
 
 
+def preset_count():
+    """CROSSFEED_PRESET_COUNT, which only exists as a macro in the header."""
+    with open(os.path.join(DSP_DIR, "Inc", "virtualizer.h")) as header:
+        return int(re.search(r"#define CROSSFEED_PRESET_COUNT (\d+)", header.read()).group(1))
+
+
 class Dsp:
     """The firmware DSP as the USB callback and the screens see it."""
 
@@ -106,7 +113,7 @@ class Dsp:
         self.band_centres = [band.frequency for band in self.state("eqBands", EqBand * BAND_COUNT)]
         self.virt_enabled = self.state("virtEnabled", ctypes.c_bool)
         self.preset = self.state("crossfeedPreset", ctypes.c_uint8)
-        count = self.state("crossfeedPresetCount", ctypes.c_uint8).value
+        count = preset_count()
         table = self.state("crossfeedPresets", CrossfeedPreset * count)
         self.presets = [Preset(i, p.name.decode(), p.cutoff_hz, p.level_db) for i, p in enumerate(table)]
 

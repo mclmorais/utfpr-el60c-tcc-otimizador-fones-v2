@@ -92,7 +92,7 @@ void FlashPersistence_RestoreModuleSwitches()
 {
   eqEnabled = SavedGainScale() == 0 || words[FLASH_EQ_ENABLED_WORD] != 0;
   virtEnabled = SavedGainScale() != 0 && words[FLASH_VIRT_ENABLED_WORD] == 1;
-  crossfeedPreset = SavedGainScale() != 0 && words[FLASH_CROSSFEED_PRESET_WORD] < crossfeedPresetCount
+  crossfeedPreset = SavedGainScale() != 0 && words[FLASH_CROSSFEED_PRESET_WORD] < CROSSFEED_PRESET_COUNT
                         ? (uint8_t)words[FLASH_CROSSFEED_PRESET_WORD]
                         : 0;
 }

@@ -7,7 +7,6 @@ const CrossfeedPreset crossfeedPresets[CROSSFEED_PRESET_COUNT] = {
   {"Chu Moy",   700, 6.0f},
   {"Jan Meier", 650, 9.5f},
 };
-const uint8_t crossfeedPresetCount = CROSSFEED_PRESET_COUNT;
 
 volatile bool virtEnabled = false;
 volatile VirtualizerTechnique virtTechnique = VIRTUALIZER_CROSSFEED;
