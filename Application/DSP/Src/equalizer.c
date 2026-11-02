@@ -11,14 +11,22 @@
 #define DOUBLE_PRECISION_BAND_COUNT 7
 #define SINGLE_PRECISION_BAND_COUNT (EQ_BAND_COUNT - DOUBLE_PRECISION_BAND_COUNT)
 
+typedef struct DoubleHistory {
+  double x1, x2, y1, y2;
+} DoubleHistory;
+
 typedef struct DoubleBiquad {
   double b0, b1, b2, a1, a2;
-  double x1[2], x2[2], y1[2], y2[2];
+  DoubleHistory history[2];
 } DoubleBiquad;
+
+typedef struct FloatHistory {
+  float x1, x2, y1, y2;
+} FloatHistory;
 
 typedef struct FloatBiquad {
   float b0, b1, b2, a1, a2;
-  float x1[2], x2[2], y1[2], y2[2];
+  FloatHistory history[2];
 } FloatBiquad;
 
 const EqBand eqBands[EQ_BAND_COUNT] = {
@@ -60,6 +68,7 @@ volatile int16_t eqGains[EQ_BAND_COUNT];
 static DoubleBiquad lowFilters[DOUBLE_PRECISION_BAND_COUNT];
 static FloatBiquad highFilters[SINGLE_PRECISION_BAND_COUNT];
 static int16_t builtGains[EQ_BAND_COUNT];
+static double wideSamples[AUDIO_USER_DSP_MAX_PACKET_FRAMES];
 
 static void Equalizer_BuildBand(uint32_t band, int16_t gain)
 {
@@ -105,44 +114,89 @@ static void Equalizer_Init(void)
     Equalizer_BuildBand(i, eqGains[i]);
 }
 
-// A 0 dB band is an exact identity, so it is skipped; its history still
-// tracks the signal so that raising its gain later does not click.
-static double Equalizer_RunLowBands(double sample, uint32_t channel)
+static void Equalizer_RunDoubleBand(const DoubleBiquad* filter, DoubleHistory* history, double* samples,
+                                    uint32_t frameCount)
 {
-  for(uint32_t i = 0; i < DOUBLE_PRECISION_BAND_COUNT; i++)
+  double x1 = history->x1;
+  double x2 = history->x2;
+  double y1 = history->y1;
+  double y2 = history->y2;
+  for(uint32_t i = 0; i < frameCount; i++)
   {
-    DoubleBiquad* filter = &lowFilters[i];
-    double output = sample;
-    if(builtGains[i] != 0)
-      output = filter->b0 * sample + filter->b1 * filter->x1[channel] + filter->b2 * filter->x2[channel] -
-               filter->a1 * filter->y1[channel] - filter->a2 * filter->y2[channel];
-
-    filter->x2[channel] = filter->x1[channel];
-    filter->x1[channel] = sample;
-    filter->y2[channel] = filter->y1[channel];
-    filter->y1[channel] = output;
-    sample = output;
+    double x = samples[i];
+    double y = filter->b0 * x + filter->b1 * x1 + filter->b2 * x2 - filter->a1 * y1 - filter->a2 * y2;
+    x2 = x1;
+    x1 = x;
+    y2 = y1;
+    y1 = y;
+    samples[i] = y;
   }
-  return sample;
+  *history = (DoubleHistory){x1, x2, y1, y2};
 }
 
-static float Equalizer_RunHighBands(float sample, uint32_t channel)
+static void Equalizer_RunFloatBand(const FloatBiquad* filter, FloatHistory* history, float* samples,
+                                   uint32_t frameCount)
 {
-  for(uint32_t i = 0; i < SINGLE_PRECISION_BAND_COUNT; i++)
+  float x1 = history->x1;
+  float x2 = history->x2;
+  float y1 = history->y1;
+  float y2 = history->y2;
+  for(uint32_t i = 0; i < frameCount; i++)
   {
-    FloatBiquad* filter = &highFilters[i];
-    float output = sample;
-    if(builtGains[i + DOUBLE_PRECISION_BAND_COUNT] != 0)
-      output = filter->b0 * sample + filter->b1 * filter->x1[channel] + filter->b2 * filter->x2[channel] -
-               filter->a1 * filter->y1[channel] - filter->a2 * filter->y2[channel];
-
-    filter->x2[channel] = filter->x1[channel];
-    filter->x1[channel] = sample;
-    filter->y2[channel] = filter->y1[channel];
-    filter->y1[channel] = output;
-    sample = output;
+    float x = samples[i];
+    float y = filter->b0 * x + filter->b1 * x1 + filter->b2 * x2 - filter->a1 * y1 - filter->a2 * y2;
+    x2 = x1;
+    x1 = x;
+    y2 = y1;
+    y1 = y;
+    samples[i] = y;
   }
-  return sample;
+  *history = (FloatHistory){x1, x2, y1, y2};
+}
+
+// A 0 dB band is an exact identity, so it is skipped; its history still
+// tracks the signal so that raising its gain later does not click.
+static void Equalizer_TrackDoubleBand(DoubleHistory* history, const double* samples, uint32_t frameCount)
+{
+  double last = samples[frameCount - 1];
+  if(frameCount == 1)
+    *history = (DoubleHistory){last, history->x1, last, history->y1};
+  else
+    *history = (DoubleHistory){last, samples[frameCount - 2], last, samples[frameCount - 2]};
+}
+
+static void Equalizer_TrackFloatBand(FloatHistory* history, const float* samples, uint32_t frameCount)
+{
+  float last = samples[frameCount - 1];
+  if(frameCount == 1)
+    *history = (FloatHistory){last, history->x1, last, history->y1};
+  else
+    *history = (FloatHistory){last, samples[frameCount - 2], last, samples[frameCount - 2]};
+}
+
+static void Equalizer_ProcessChannel(float* samples, uint32_t frameCount, uint32_t channel)
+{
+  for(uint32_t i = 0; i < frameCount; i++)
+    wideSamples[i] = samples[i];
+  for(uint32_t band = 0; band < DOUBLE_PRECISION_BAND_COUNT; band++)
+  {
+    DoubleBiquad* filter = &lowFilters[band];
+    if(builtGains[band] != 0)
+      Equalizer_RunDoubleBand(filter, &filter->history[channel], wideSamples, frameCount);
+    else
+      Equalizer_TrackDoubleBand(&filter->history[channel], wideSamples, frameCount);
+  }
+  for(uint32_t i = 0; i < frameCount; i++)
+    samples[i] = (float)wideSamples[i];
+
+  for(uint32_t band = 0; band < SINGLE_PRECISION_BAND_COUNT; band++)
+  {
+    FloatBiquad* filter = &highFilters[band];
+    if(builtGains[band + DOUBLE_PRECISION_BAND_COUNT] != 0)
+      Equalizer_RunFloatBand(filter, &filter->history[channel], samples, frameCount);
+    else
+      Equalizer_TrackFloatBand(&filter->history[channel], samples, frameCount);
+  }
 }
 
 static void Equalizer_Process(float* left, float* right, uint32_t frameCount)
@@ -159,11 +213,10 @@ static void Equalizer_Process(float* left, float* right, uint32_t frameCount)
     }
   }
 
-  for(uint32_t frame = 0; frame < frameCount; frame++)
-  {
-    left[frame] = Equalizer_RunHighBands((float)Equalizer_RunLowBands(left[frame], 0), 0);
-    right[frame] = Equalizer_RunHighBands((float)Equalizer_RunLowBands(right[frame], 1), 1);
-  }
+  if(frameCount == 0)
+    return;
+  Equalizer_ProcessChannel(left, frameCount, 0);
+  Equalizer_ProcessChannel(right, frameCount, 1);
 }
 
 const DspModule equalizerModule = {Equalizer_Init, Equalizer_Process};
