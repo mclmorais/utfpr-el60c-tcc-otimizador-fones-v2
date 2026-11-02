@@ -2,6 +2,7 @@
 #include "main.h"
 #include "stlogo.h"
 #include "usb_audio.h"
+#include "audio_speaker_node.h"
 #include "usart.h"
 #include "flash_persistence.h"
 #include "user_lcd.h"
@@ -24,21 +25,11 @@ uint8_t pColRight[]       = {0x01, 0x90, 0x03, 0x1F}; // 400 -> 799
 uint8_t pPage[]           = {0x00, 0x00, 0x01, 0xDF}; // 0 -> 479
 uint8_t pSyncLeft[]       = {0x02, 0x15};             // Scan @ 533
 
-#if USE_AUDIO_TIMER_VOLUME_CTRL
-TIM_HandleTypeDef TimHandle;
-// Prescaler declaration
-uint32_t uwPrescalerValue = 0;
-#endif // USE_AUDIO_TIMER_VOLUME_CTRL
-
 // private function prototypes -------------------------------------------------
 // static void OnError_Handler(uint32_t condition);
 static void     SystemClock_Config(void);
 static void     CPU_CACHE_Enable(void);
 static void     USB_Init(void);
-
-#if USE_AUDIO_TIMER_VOLUME_CTRL
-static HAL_StatusTypeDef Timer_Init(void);
-#endif // USE_AUDIO_TIMER_VOLUME_CTRL
 
 // external variables ----------------------------------------------------------
 extern USBD_AUDIO_InterfaceCallbacksfTypeDef audio_class_interface;
@@ -82,15 +73,12 @@ int main(void)
 	uint8_t initString[] = "\r\n--- Horoscope Initialization Complete! ---\r\n";
 	HAL_UART_Transmit(&UART1_Handle, initString, sizeof(initString), 10);
 
-
-  #if USE_AUDIO_TIMER_VOLUME_CTRL
-	// configures timer for volume control handling
-	Timer_Init();
-  #endif // USE_AUDIO_TIMER_VOLUME_CTRL
-
 	// Infinite loop
 	while (1)
 	{
+		// the codec shares I2C4 with the touch controller, so only this loop may talk to it
+		AUDIO_SpeakerApplyCodecRequests();
+
 		if(++touchscreenTimer > 40)
 		{
 			Touchscreen_ButtonHandler();
@@ -116,71 +104,6 @@ static void CPU_CACHE_Enable(void)
 	SCB_EnableDCache();
 }
 
-
-#if USE_AUDIO_TIMER_VOLUME_CTRL
-
-/**
- * @brief  This function initialize timer to handle volume control.
- * @param  None
- * @retval Status
- */
-static HAL_StatusTypeDef Timer_Init(void)
-{
-	//##-1- Configure the TIM peripheral #######################################
-	/* -----------------------------------------------------------------------
-	   In this example TIM3 input clock (TIM3CLK)  is set to APB1 clock (PCLK1) x2,
-	   since APB1 prescaler is equal to 4.
-	    TIM3CLK = PCLK1*2
-	    PCLK1 = HCLK/4
-	    => TIM3CLK = HCLK/2 = SystemCoreClock/2
-	   To get TIM3 counter clock at 10 KHz, the Prescaler is computed as follows:
-	   Prescaler = (TIM3CLK / TIM3 counter clock) - 1
-	   Prescaler = ((SystemCoreClock/2) /10 KHz) - 1
-
-	   Note:
-	   SystemCoreClock variable holds HCLK frequency and is defined in system_stm32f4xx.c file.
-	   Each time the core clock (HCLK) changes, user had to update SystemCoreClock
-	   variable value. Otherwise, any configuration based on this variable will be incorrect.
-	   This variable is updated in three ways:
-	    1) by calling CMSIS function SystemCoreClockUpdate()
-	    2) by calling HAL API function HAL_RCC_GetSysClockFreq()
-	    3) each time HAL_RCC_ClockConfig() is called to configure the system clock frequency
-	   ----------------------------------------------------------------------- */
-
-	// Compute the prescaler value to have TIM_VolumeChange counter clock equal to 10000 Hz
-	uwPrescalerValue = (uint32_t)((SystemCoreClock / 2) / 10000) - 1;
-
-	// Set TIM_VolumeChange instance
-	TimHandle.Instance = TIM_VolumeChange;
-
-	/* Initialize TIM_VolumeChange peripheral as follows:
-	 + Period = 1000 - 1
-	 + Prescaler = ((SystemCoreClock / 2)/10000) - 1
-	 + ClockDivision = 0
-	 + Counter direction = Up
-	 */
-	TimHandle.Init.Period            = 1000 - 1;
-	TimHandle.Init.Prescaler         = uwPrescalerValue;
-	TimHandle.Init.ClockDivision     = 0;
-	TimHandle.Init.CounterMode       = TIM_COUNTERMODE_UP;
-	TimHandle.Init.RepetitionCounter = 0;
-
-	if (HAL_TIM_Base_Init(&TimHandle) != HAL_OK)
-	{
-		// Initialization Error
-		Error_Handler();
-	}
-
-	//##-2- Start the TIM Base generation in interrupt mode ####################
-	// Start Channel1
-	if (HAL_TIM_Base_Start_IT(&TimHandle) != HAL_OK)
-	{
-		// Starting Error
-		Error_Handler();
-	}
-	return HAL_OK;
-}
-#endif // USE_AUDIO_TIMER_VOLUME_CTRL
 
 /**
  * @brief  System Clock Configuration

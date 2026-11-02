@@ -32,10 +32,6 @@
 /* Exported constants --------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
-#if USE_AUDIO_TIMER_VOLUME_CTRL
-void TIM_VolumeChangeIRQHandler(void);
-#endif /* USE_AUDIO_TIMER_VOLUME_CTRL */
-
 void NMI_Handler(void);
 void HardFault_Handler(void);
 void MemManage_Handler(void);

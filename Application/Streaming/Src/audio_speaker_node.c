@@ -25,8 +25,14 @@
 
 /* Private defines -----------------------------------------------------------*/
 #define SPEAKER_CMD_STOP                1
-#define SPEAKER_CMD_EXIT                2
 #define SPEAKER_CMD_CHANGE_FREQUENCE    4
+
+/* codec requests posted by interrupts and applied by AUDIO_SpeakerApplyCodecRequests */
+#define SPEAKER_CODEC_INIT              0x01
+#define SPEAKER_CODEC_DEINIT            0x02
+#define SPEAKER_CODEC_FREQUENCY         0x04
+#define SPEAKER_CODEC_MUTE              0x08
+#define SPEAKER_CODEC_VOLUME            0x10
 #define VOLUME_DB_256_TO_PERCENT(volume_db_256) ((uint8_t)((((int)(volume_db_256) - VOLUME_SPEAKER_MIN_DB_256)*100)/\
                                                           (VOLUME_SPEAKER_MAX_DB_256 - VOLUME_SPEAKER_MIN_DB_256)))
 
@@ -64,6 +70,7 @@ static int8_t  AUDIO_SpeakerChangeFrequency( uint32_t node_handle);
 static int8_t  AUDIO_SpeakerMute( uint16_t channel_number,  uint8_t mute , uint32_t node_handle);
 static int8_t  AUDIO_SpeakerSetVolume( uint16_t channel_number,  int volume ,  uint32_t node_handle);
 static void    AUDIO_SpeakerInitInjectionsParams( AUDIO_SpeakerNode_t* speaker);
+static void    AUDIO_SpeakerPostCodecRequests(uint8_t set, uint8_t clear);
 #if USB_AUDIO_CONFIG_PLAY_RES_BIT == 24 
 static void AUDIO_DoPadding_24_32(AUDIO_CircularBuffer_t *buff_src,  uint8_t *data_dest ,  int size);
 #endif /* USB_AUDIO_CONFIG_PLAY_RES_BIT == 24   */
@@ -91,6 +98,13 @@ extern __IO uint32_t uwTick;
 
 /* Private variables -----------------------------------------------------------*/
 static AUDIO_SpeakerNode_t *AUDIO_SpeakerHandler = 0;
+static uint8_t AUDIO_SpeakerAltBuffer[SPEAKER_ALT_BUFFER_SIZE];
+/* Kept outside the node: AUDIO_SpeakerInit clears the node while a DEINIT may still be pending. */
+static AUDIO_SpeakerNode_t *AUDIO_SpeakerCodecNode = 0;
+static __IO uint8_t AUDIO_SpeakerCodecRequests = 0;
+static __IO uint8_t AUDIO_SpeakerCodecMute = 0;
+static __IO int AUDIO_SpeakerCodecVolume = VOLUME_SPEAKER_DEFAULT_DB_256;
+static __IO uint8_t AUDIO_SpeakerCodecOn = 0;
 #ifdef DEBUG_SPEAKER_NODE
 static AUDIO_SpeakerNodeBufferStats_t AUDIO_SpeakerDebugStats[SPEAKER_DEBUG_BUFFER_SIZE];
 static  int AUDIO_SpeakerDebugStats_count =0;
@@ -117,11 +131,7 @@ static  int AUDIO_SpeakerDebugStats_count =0;
   speaker->node.state             = AUDIO_NODE_INITIALIZED;
   speaker->node.session_handle    = session_handle;
   speaker->node.audio_description = audio_description;
-  speaker->specific.alt_buffer    = malloc(SPEAKER_ALT_BUFFER_SIZE);
-  if(speaker->specific.alt_buffer == 0)
-  {
-    Error_Handler();
-  }
+  speaker->specific.alt_buffer    = AUDIO_SpeakerAltBuffer;
   AUDIO_SpeakerInitInjectionsParams( speaker);
 
   /* set callbacks */
@@ -134,10 +144,78 @@ static  int AUDIO_SpeakerDebugStats_count =0;
   speaker->SpeakerStartReadCount  = AUDIO_SpeakerStartReadCount;
   speaker->SpeakerGetReadCount    = AUDIO_SpeakerGetLastReadCount;
 
-  BSP_AUDIO_OUT_Init_Ext(OUTPUT_DEVICE_AUTO, VOLUME_DB_256_TO_PERCENT(VOLUME_SPEAKER_DEFAULT_DB_256), speaker->node.audio_description->frequency, audio_description->resolution << 3);
-  BSP_AUDIO_OUT_Play((uint16_t *)speaker->specific.data, speaker->specific.data_size);
+  AUDIO_SpeakerCodecNode = speaker;
   AUDIO_SpeakerHandler = speaker;
+  AUDIO_SpeakerPostCodecRequests(SPEAKER_CODEC_INIT, 0);
   return 0;
+}
+
+/**
+  * @brief  AUDIO_SpeakerApplyCodecRequests
+  *         Applies the codec requests posted by the USB and DMA interrupts. Must be called from the main
+  *         loop only: the codec shares I2C4 with the touch controller, which the main loop reads.
+  * @param  None
+  * @retval None
+  */
+void AUDIO_SpeakerApplyCodecRequests(void)
+{
+  AUDIO_SpeakerNode_t* speaker = AUDIO_SpeakerCodecNode;
+  uint32_t primask = __get_PRIMASK();
+  uint8_t requests;
+
+  __disable_irq();
+  requests = AUDIO_SpeakerCodecRequests;
+  AUDIO_SpeakerCodecRequests = 0;
+  __set_PRIMASK(primask);
+
+  if((requests & SPEAKER_CODEC_DEINIT) && AUDIO_SpeakerCodecOn)
+  {
+    BSP_AUDIO_OUT_SetMute(AUDIO_MUTE_ON);
+    BSP_AUDIO_OUT_Stop(CODEC_PDWN_SW);
+    BSP_AUDIO_OUT_DeInit();
+    AUDIO_SpeakerCodecOn = 0;
+  }
+  if(requests & SPEAKER_CODEC_INIT)
+  {
+    BSP_AUDIO_OUT_Init_Ext(OUTPUT_DEVICE_AUTO, VOLUME_DB_256_TO_PERCENT(VOLUME_SPEAKER_DEFAULT_DB_256), speaker->node.audio_description->frequency, speaker->node.audio_description->resolution << 3);
+    BSP_AUDIO_OUT_Play((uint16_t *)speaker->specific.data, speaker->specific.data_size);
+    AUDIO_SpeakerCodecOn = 1;
+  }
+  if(!AUDIO_SpeakerCodecOn)
+  {
+    return;
+  }
+  if(requests & SPEAKER_CODEC_FREQUENCY)
+  {
+    BSP_AUDIO_OUT_SetMute(AUDIO_MUTE_ON);
+    BSP_AUDIO_OUT_SetFrequency(speaker->node.audio_description->frequency);
+    BSP_AUDIO_OUT_ChangeBuffer((uint16_t*)speaker->specific.data, (uint16_t)speaker->specific.data_size);
+    requests |= SPEAKER_CODEC_MUTE;
+  }
+  if(requests & SPEAKER_CODEC_MUTE)
+  {
+    BSP_AUDIO_OUT_SetMute(AUDIO_SpeakerCodecMute);
+  }
+  if(requests & SPEAKER_CODEC_VOLUME)
+  {
+    BSP_AUDIO_OUT_SetVolume(VOLUME_DB_256_TO_PERCENT(AUDIO_SpeakerCodecVolume));
+  }
+}
+
+/**
+  * @brief  AUDIO_SpeakerPostCodecRequests
+  *         Posts codec requests for the main loop. Safe to call from any interrupt priority.
+  * @param  set(IN):   requests to add
+  * @param  clear(IN): pending requests to drop
+  * @retval None
+  */
+static void AUDIO_SpeakerPostCodecRequests(uint8_t set, uint8_t clear)
+{
+  uint32_t primask = __get_PRIMASK();
+
+  __disable_irq();
+  AUDIO_SpeakerCodecRequests = (AUDIO_SpeakerCodecRequests & ~clear) | set;
+  __set_PRIMASK(primask);
 }
 
 
@@ -164,25 +242,14 @@ void BSP_AUDIO_OUT_TransferComplete_CallBack(void)
     
   if((AUDIO_SpeakerHandler)&&(AUDIO_SpeakerHandler->node.state != AUDIO_NODE_OFF))
   {
-    /* execute if any stop cmd was received */
-   if(AUDIO_SpeakerHandler->specific.cmd&SPEAKER_CMD_EXIT)
-   {
-     AUDIO_SpeakerHandler->specific.cmd = 0;
-     return ;
-   }
-
    if(AUDIO_SpeakerHandler->specific.cmd&SPEAKER_CMD_CHANGE_FREQUENCE)
    {
      AUDIO_SpeakerHandler->node.state = AUDIO_NODE_STOPPED;
-#if !USE_AUDIO_TIMER_VOLUME_CTRL
-     BSP_AUDIO_OUT_SetMute(1);
-#endif /*USE_AUDIO_TIMER_VOLUME_CTRL*/
      AUDIO_SpeakerInitInjectionsParams(AUDIO_SpeakerHandler);
-     BSP_AUDIO_OUT_SetFrequency(AUDIO_SpeakerHandler->node.audio_description->frequency);
-#if !USE_AUDIO_TIMER_VOLUME_CTRL
-     BSP_AUDIO_OUT_SetMute(AUDIO_SpeakerHandler->node.audio_description->audio_mute);
-#endif /*USE_AUDIO_TIMER_VOLUME_CTRL*/
      AUDIO_SpeakerHandler->specific.cmd = 0;
+     /* the DMA stays stopped until the main loop changes the codec frequency and re-arms it */
+     AUDIO_SpeakerPostCodecRequests(SPEAKER_CODEC_FREQUENCY, 0);
+     return;
    }
    
     if(AUDIO_SpeakerHandler->specific.cmd&SPEAKER_CMD_STOP)
@@ -299,27 +366,16 @@ void BSP_AUDIO_OUT_HalfTransfer_CallBack(void)
   */
 static int8_t  AUDIO_SpeakerDeInit(uint32_t node_handle)
 {
-  /* @TODO implement function */
   AUDIO_SpeakerNode_t* speaker;
-  
+
   speaker = (AUDIO_SpeakerNode_t*)node_handle;
+  /* without a handler the transfer complete callback stops re-arming the DMA */
+  AUDIO_SpeakerHandler = 0;
   if(speaker->node.state != AUDIO_NODE_OFF)
   {
-    if(speaker->node.state != AUDIO_NODE_ERROR)
-    {
-      /* stop the dma injection */
-      speaker->specific.cmd = SPEAKER_CMD_EXIT;
-        while(speaker->specific.cmd&SPEAKER_CMD_EXIT);
-    }
-#if !USE_AUDIO_TIMER_VOLUME_CTRL
-    BSP_AUDIO_OUT_SetMute(1);
-#endif /*USE_AUDIO_TIMER_VOLUME_CTRL*/
-    free(speaker->specific.alt_buffer);
-    BSP_AUDIO_OUT_Stop(CODEC_PDWN_SW);
-    BSP_AUDIO_OUT_DeInit();
     speaker->node.state = AUDIO_NODE_OFF;
+    AUDIO_SpeakerPostCodecRequests(SPEAKER_CODEC_DEINIT, SPEAKER_CODEC_INIT|SPEAKER_CODEC_FREQUENCY|SPEAKER_CODEC_MUTE|SPEAKER_CODEC_VOLUME);
   }
-  AUDIO_SpeakerHandler = 0;
   return 0;
 }
 
@@ -413,17 +469,8 @@ static void  AUDIO_SpeakerInitInjectionsParams( AUDIO_SpeakerNode_t* speaker)
   */ 
 static int8_t  AUDIO_SpeakerMute( uint16_t channel_number,  uint8_t mute , uint32_t node_handle)
 {
-#if USE_AUDIO_TIMER_VOLUME_CTRL
-  AUDIO_SpeakerNode_t* speaker;
-
-  speaker = (AUDIO_SpeakerNode_t*)node_handle;
-  speaker->node.audio_description->audio_mute = mute;
-  speaker->specific.cmd = (speaker->specific.cmd&(~SPEAKER_CMD_MUTE_FIRST))|SPEAKER_CMD_MUTE_UNMUTE;
-
-#else
-  BSP_AUDIO_OUT_SetMute(mute);
-#endif /* USE_AUDIO_TIMER_VOLUME_CTRL */
-
+  AUDIO_SpeakerCodecMute = mute;
+  AUDIO_SpeakerPostCodecRequests(SPEAKER_CODEC_MUTE, 0);
   return 0;
 }
 
@@ -437,47 +484,10 @@ static int8_t  AUDIO_SpeakerMute( uint16_t channel_number,  uint8_t mute , uint3
   */ 
 static int8_t  AUDIO_SpeakerSetVolume( uint16_t channel_number,  int volume_db_256 ,  uint32_t node_handle)
 {
-#if USE_AUDIO_TIMER_VOLUME_CTRL
-  AUDIO_SpeakerNode_t* speaker;
-  
-  speaker = (AUDIO_SpeakerNode_t*)node_handle;
-  speaker->node.audio_description->audio_volume_db_256 = volume_db_256;
-  speaker->specific.cmd  |= (SPEAKER_CMD_MUTE_FIRST|SPEAKER_CMD_CHANGE_VOLUME);
-#else
-  BSP_AUDIO_OUT_SetVolume(VOLUME_DB_256_TO_PERCENT(volume_db_256));
-#endif /* USE_AUDIO_TIMER_VOLUME_CTRL */
+  AUDIO_SpeakerCodecVolume = volume_db_256;
+  AUDIO_SpeakerPostCodecRequests(SPEAKER_CODEC_VOLUME, 0);
   return 0;
-}      
-
-#if USE_AUDIO_TIMER_VOLUME_CTRL
-/**
-  * @brief  Period elapsed callback in non blocking mode
-  * @param  htim : TIM handle
-  * @retval None
-  */
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-  if((AUDIO_SpeakerHandler)&&(AUDIO_SpeakerHandler->node.state != AUDIO_NODE_OFF))
-  {
-    /* Handle volume Commands here */
-    if(AUDIO_SpeakerHandler->specific.cmd & SPEAKER_CMD_CHANGE_VOLUME)
-    {
-      if((AUDIO_SpeakerHandler->specific.cmd & SPEAKER_CMD_MUTE_FIRST)&&(AUDIO_SpeakerHandler->specific.cmd&SPEAKER_CMD_MUTE_UNMUTE))
-      {
-        //BSP_AUDIO_OUT_SetMute(AUDIO_SpeakerHandler->node.audio_description->audio_mute);
-        AUDIO_SpeakerHandler->specific.cmd&=~SPEAKER_CMD_MUTE_UNMUTE;
-      }
-      BSP_AUDIO_OUT_SetVolume(VOLUME_DB_256_TO_PERCENT(AUDIO_SpeakerHandler->node.audio_description->audio_volume_db_256));
-      AUDIO_SpeakerHandler->specific.cmd&=~SPEAKER_CMD_CHANGE_VOLUME;
-    }
-    if(AUDIO_SpeakerHandler->specific.cmd&SPEAKER_CMD_MUTE_UNMUTE)
-    {
-      BSP_AUDIO_OUT_SetMute(AUDIO_SpeakerHandler->node.audio_description->audio_mute);
-      AUDIO_SpeakerHandler->specific.cmd&=~SPEAKER_CMD_MUTE_UNMUTE;
-    }
-  }
 }
-#endif /* USE_AUDIO_TIMER_VOLUME_CTRL */
 
 #if USB_AUDIO_CONFIG_PLAY_RES_BIT == 24  
 /**
@@ -517,8 +527,13 @@ static int8_t  AUDIO_SpeakerStartReadCount( uint32_t node_handle)
      AUDIO_SpeakerNode_t* speaker;
   
     speaker = (AUDIO_SpeakerNode_t*)node_handle;
+    /* the host can stream before the main loop has set up the SAI and its DMA */
+    if(!AUDIO_SpeakerCodecOn)
+    {
+      return 0;
+    }
     speaker->specific.dma_remaining = __HAL_DMA_GET_COUNTER(haudio_out_sai.hdmatx);
-    return 0;    
+    return 0;
 }
 
  
@@ -535,6 +550,10 @@ static uint16_t  AUDIO_SpeakerGetLastReadCount( uint32_t node_handle)
   int cur_waiting_bytes, read_bytes, last_packet_size;
   
    speaker = (AUDIO_SpeakerNode_t*)node_handle;
+   if(!AUDIO_SpeakerCodecOn)
+   {
+     return 0;
+   }
    /* read remind value in dma buffer */
     cur_waiting_bytes =  __HAL_DMA_GET_COUNTER(haudio_out_sai.hdmatx);
     last_packet_size = haudio_out_sai.XferSize;
