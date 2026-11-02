@@ -62,6 +62,31 @@ O projeto foi desenvolvido para a placa de desenvolvimento **STM32F769I-Discover
 └── Utilities/                  # Utilitários (fontes, etc.)
 ```
 
+### Código da ST
+
+O código em `Drivers/` é cópia sem edição dos repositórios da ST no GitHub, nas versões que o [STM32CubeF7](https://github.com/STMicroelectronics/STM32CubeF7) v1.17.4 usa. O `.gitmodules` do STM32CubeF7 lista o repositório de cada componente, e a tag de cada um sai do commit que o submódulo aponta.
+
+| Componente | Pasta | Versão | Origem |
+| --- | --- | --- | --- |
+| HAL | `Drivers/STM32F7xx_HAL_Driver` | v1.3.3 | [stm32f7xx-hal-driver](https://github.com/STMicroelectronics/stm32f7xx-hal-driver) |
+| CMSIS Device | `Drivers/CMSIS/Device/ST/STM32F7xx` | v1.2.10 | [cmsis-device-f7](https://github.com/STMicroelectronics/cmsis-device-f7) |
+| CMSIS Core | `Drivers/CMSIS/Include` | 5.0.8 | Pasta `Drivers/CMSIS/Include` do [STM32CubeF7](https://github.com/STMicroelectronics/STM32CubeF7) v1.17.4 |
+| BSP da placa | `Drivers/BSP/STM32F769I-Discovery` | v2.2.1 | [32f769idiscovery-bsp](https://github.com/STMicroelectronics/32f769idiscovery-bsp) |
+| Painel OTM8009A | `Drivers/BSP/Components/otm8009a` | v1.0.7 | [stm32-otm8009a](https://github.com/STMicroelectronics/stm32-otm8009a) |
+| Painel NT35510 | `Drivers/BSP/Components/nt35510` | v1.0.3 | [stm32-nt35510](https://github.com/STMicroelectronics/stm32-nt35510) |
+| Touch FT6x06 | `Drivers/BSP/Components/ft6x06` | v1.0.2 | [stm32-ft6x06](https://github.com/STMicroelectronics/stm32-ft6x06) |
+| Ponte HDMI ADV7533 | `Drivers/BSP/Components/adv7533` | v1.0.2 | [stm32-adv7533](https://github.com/STMicroelectronics/stm32-adv7533) |
+| Interfaces comuns | `Drivers/BSP/Components/common` | v4.0.1 | [stm32-bsp-common](https://github.com/STMicroelectronics/stm32-bsp-common) |
+
+Do HAL, o projeto guarda todos os headers e só os `.c` que o `cmake/files.cmake` compila.
+
+O código de áudio USB vem do pacote [X-CUBE-USB-AUDIO](https://www.st.com/en/embedded-software/x-cube-usb-audio.html) 1.0.0, a única versão publicada. A ST distribui esse pacote só pelo site, sem repositório no GitHub. Ele foi adaptado ao projeto, então não é cópia fiel:
+
+- `Application/USB_Device_Audio/` e `Application/Streaming/`
+- `Drivers/BSP/STM32F769I-Discovery/stm32f769i_discovery_audio_ex.*` e `Drivers/BSP/Components/wm8994/`
+
+Para atualizar um componente de `Drivers/`, copie os arquivos da nova tag por cima dos atuais, compile e teste o áudio USB na placa. Atualize também a versão nesta tabela. O HAL v1.3.0, por exemplo, mudou o tratamento de frames isócronos incompletos e exigiu uma mudança no `usbd_audio.c`.
+
 ## Funcionalidades Técnicas
 
 ### Processamento de Áudio
@@ -243,6 +268,8 @@ Este projeto foi desenvolvido como Trabalho de Conclusão de Curso (TCC) de Enge
 - **STM32 HAL**: Hardware Abstraction Layer da STMicroelectronics
 - **USB Device Library**: Stack USB da STMicroelectronics
 - **CMSIS**: Cortex Microcontroller Software Interface Standard
+
+As versões e os repositórios de origem estão em [Código da ST](#código-da-st).
 
 ### Documentação Relacionada
 
