@@ -206,6 +206,25 @@ void Touchscreen_ButtonHandler(void)
         LCD_UpdateSwitchButton(&virtSwitchButton, virtEnabled);
         FlashPersistence_WriteSettings(CurrentDisplay());
       }
+
+      return;
+    }
+
+    for(uint32_t i = 0; i < CROSSFEED_PRESET_COUNT; i++)
+    {
+      if(touchXPosition > presetButtons[i].x && touchXPosition < presetButtons[i].x + presetButtons[i].width &&
+         touchYPosition > presetButtons[i].y && touchYPosition < presetButtons[i].y + presetButtons[i].height)
+      {
+        if(!isTapLatched)
+        {
+          isTapLatched = true;
+          crossfeedPreset = (uint8_t)i;
+          LCD_UpdateState();
+          FlashPersistence_WriteSettings(CurrentDisplay());
+        }
+
+        break;
+      }
     }
 
     return;

@@ -41,14 +41,17 @@
 #define STEP_BUTTON_GAP    4
 #define GAIN_TEXT_GAP      6
 #define MOON_RADIUS        14
-#define MOON_BITE_OFFSET_X 7
-#define MOON_BITE_OFFSET_Y 5
-#define LOGO_INK_BLUE      24
-#define LOGO_YELLOW        0xFFCF00
-#define TRAIL_THICKNESS    4
-#define TRAIL_SEGMENT      8
-#define TRAIL_LENGTH       24
-#define TRAIL_SEGMENTS     (2 * (WVGA_RES_X + WVGA_RES_Y) / TRAIL_SEGMENT)
+// The widest name, Jan Meier, is 9 Font24 characters of 17 px plus the 5 px label margin.
+#define PRESET_BUTTON_WIDTH 165
+#define PRESET_BUTTON_GAP   8
+#define MOON_BITE_OFFSET_X  7
+#define MOON_BITE_OFFSET_Y  5
+#define LOGO_INK_BLUE       24
+#define LOGO_YELLOW         0xFFCF00
+#define TRAIL_THICKNESS     4
+#define TRAIL_SEGMENT       8
+#define TRAIL_LENGTH        24
+#define TRAIL_SEGMENTS      (2 * (WVGA_RES_X + WVGA_RES_Y) / TRAIL_SEGMENT)
 // Font24 leaves its top two rows blank, so the labels' ink starts just under the trail.
 #define EQ_LABEL_Y 2
 
@@ -101,6 +104,9 @@ RectangleButton virtSwitchButton = {
   .isPressed = false,
   .isActive = false,
 };
+
+// One per Preset, laid out and labelled by LCD_DisplayVirtualizerPage; exactly the selected one is active.
+RectangleButton presetButtons[CROSSFEED_PRESET_COUNT];
 
 RectangleButton saveButton = {
   .x = 20,
@@ -301,15 +307,27 @@ static void LCD_DisplayVirtualizerPage(void)
   BSP_LCD_SetTextColor(theme->foreground);
   BSP_LCD_DisplayStringAt(250, 60, (uint8_t*)"Virtualizacao", LEFT_MODE);
   BSP_LCD_DisplayStringAt(250, 150, (uint8_t*)"Tecnica: Crossfeed", LEFT_MODE);
-  sprintf(text, "Preset: %s", preset->name);
-  BSP_LCD_DisplayStringAt(250, 190, (uint8_t*)text, LEFT_MODE);
+  BSP_LCD_DisplayStringAt(250, 190, (uint8_t*)"Preset:", LEFT_MODE);
+  for(uint32_t i = 0; i < CROSSFEED_PRESET_COUNT; i++)
+  {
+    presetButtons[i].x = 250 + i * (PRESET_BUTTON_WIDTH + PRESET_BUTTON_GAP);
+    presetButtons[i].y = 230;
+    presetButtons[i].width = PRESET_BUTTON_WIDTH;
+    presetButtons[i].height = 50;
+    presetButtons[i].text = (char*)crossfeedPresets[i].name;
+    presetButtons[i].isActive = i == crossfeedPreset;
+    LCD_UpdateRectangleButton(&presetButtons[i]);
+  }
+
+  BSP_LCD_SetBackColor(theme->background);
+  BSP_LCD_SetTextColor(theme->foreground);
   int levelTenths = (int)(preset->levelDb * 10 + 0.5f);
   sprintf(text, "%d Hz, %d.%d dB", (int)preset->cutoffHz, levelTenths / 10, levelTenths % 10);
-  BSP_LCD_DisplayStringAt(250, 230, (uint8_t*)text, LEFT_MODE);
+  BSP_LCD_DisplayStringAt(250, 300, (uint8_t*)text, LEFT_MODE);
 
   BSP_LCD_SetFont(&Font16);
-  BSP_LCD_DisplayStringAt(250, 300, (uint8_t*)"Cada ouvido recebe uma copia abafada", LEFT_MODE);
-  BSP_LCD_DisplayStringAt(250, 320, (uint8_t*)"do canal oposto, como com caixas de som.", LEFT_MODE);
+  BSP_LCD_DisplayStringAt(250, 350, (uint8_t*)"Cada ouvido recebe uma copia abafada", LEFT_MODE);
+  BSP_LCD_DisplayStringAt(250, 370, (uint8_t*)"do canal oposto, como com caixas de som.", LEFT_MODE);
   BSP_LCD_SetFont(&Font24);
 }
 

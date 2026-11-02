@@ -15,6 +15,8 @@
 #define FLASH_EQ_ENABLED_WORD (EQ_BAND_COUNT + 4)
 // Sectors saved before the Virtualization existed read 0xFFFFFFFF here, which loads as off.
 #define FLASH_VIRT_ENABLED_WORD (EQ_BAND_COUNT + 5)
+// Sectors saved before the Presets existed read 0xFFFFFFFF here, which is out of range and loads as the first Preset, Padrao.
+#define FLASH_CROSSFEED_PRESET_WORD (EQ_BAND_COUNT + 6)
 
 static volatile uint32_t* const words = (volatile uint32_t*)FLASH_USER_START_ADDR;
 
@@ -62,6 +64,7 @@ static void WriteSector(const volatile int16_t* gains, DisplaySettings display)
   HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_DARK_WORD * 4, display.isDark);
   HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_EQ_ENABLED_WORD * 4, eqEnabled);
   HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_VIRT_ENABLED_WORD * 4, virtEnabled);
+  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_CROSSFEED_PRESET_WORD * 4, crossfeedPreset);
   HAL_FLASH_Lock();
 }
 
@@ -89,6 +92,9 @@ void FlashPersistence_RestoreModuleSwitches()
 {
   eqEnabled = SavedGainScale() == 0 || words[FLASH_EQ_ENABLED_WORD] != 0;
   virtEnabled = SavedGainScale() != 0 && words[FLASH_VIRT_ENABLED_WORD] == 1;
+  crossfeedPreset = SavedGainScale() != 0 && words[FLASH_CROSSFEED_PRESET_WORD] < crossfeedPresetCount
+                        ? (uint8_t)words[FLASH_CROSSFEED_PRESET_WORD]
+                        : 0;
 }
 
 DisplaySettings FlashPersistence_ReadDisplay()
