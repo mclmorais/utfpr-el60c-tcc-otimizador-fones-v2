@@ -1,13 +1,13 @@
 #include "flash_persistence.h"
 #include "audio_user_dsp.h"
 
-#define FLASH_LAYOUT_TAG 0x32335145
+#define FLASH_LAYOUT_TAG          0x32335145
 #define FLASH_WHOLE_DB_LAYOUT_TAG 0x31335145
 // Sectors saved before the orientation existed read 0xFFFFFFFF here, which loads as not flipped.
 #define FLASH_FLIP_WORD (EQ_BAND_COUNT + 1)
 // Sectors saved before the brightness existed read 0xFFFFFFFF here, which loads as full brightness.
 #define FLASH_BRIGHTNESS_WORD (EQ_BAND_COUNT + 2)
-#define DEFAULT_BRIGHTNESS 100
+#define DEFAULT_BRIGHTNESS    100
 // Sectors saved before the dark mode existed read 0xFFFFFFFF here, which loads as the light theme.
 #define FLASH_DARK_WORD (EQ_BAND_COUNT + 3)
 

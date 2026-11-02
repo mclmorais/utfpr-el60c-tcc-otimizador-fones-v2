@@ -2,7 +2,7 @@
 #include "usb_audio.h"
 #include <math.h>
 
-#define PI 3.14159265358979323846
+#define PI                     3.14159265358979323846
 #define BAND_BANDWIDTH_OCTAVES (1.0 / 3.0)
 
 // Float round-off recirculates through the near-unit-circle poles of the
@@ -22,37 +22,37 @@ typedef struct FloatBiquad {
 } FloatBiquad;
 
 const EqBand eqBands[EQ_BAND_COUNT] = {
-  {20, "20"},
-  {25, "25"},
-  {31.5f, "31"},
-  {40, "40"},
-  {50, "50"},
-  {63, "63"},
-  {80, "80"},
-  {100, "100"},
-  {125, "125"},
-  {160, "160"},
-  {200, "200"},
-  {250, "250"},
-  {315, "315"},
-  {400, "400"},
-  {500, "500"},
-  {630, "630"},
-  {800, "800"},
-  {1000, "1k"},
-  {1250, "1k2"},
-  {1600, "1k6"},
-  {2000, "2k"},
-  {2500, "2k5"},
-  {3150, "3k1"},
-  {4000, "4k"},
-  {5000, "5k"},
-  {6300, "6k3"},
-  {8000, "8k"},
+  {20,    "20" },
+  {25,    "25" },
+  {31.5f, "31" },
+  {40,    "40" },
+  {50,    "50" },
+  {63,    "63" },
+  {80,    "80" },
+  {100,   "100"},
+  {125,   "125"},
+  {160,   "160"},
+  {200,   "200"},
+  {250,   "250"},
+  {315,   "315"},
+  {400,   "400"},
+  {500,   "500"},
+  {630,   "630"},
+  {800,   "800"},
+  {1000,  "1k" },
+  {1250,  "1k2"},
+  {1600,  "1k6"},
+  {2000,  "2k" },
+  {2500,  "2k5"},
+  {3150,  "3k1"},
+  {4000,  "4k" },
+  {5000,  "5k" },
+  {6300,  "6k3"},
+  {8000,  "8k" },
   {10000, "10k"},
   {12500, "12k"},
   {16000, "16k"},
-  {20000, "20k"}
+  {20000, "20k"},
 };
 
 volatile int16_t eqGains[EQ_BAND_COUNT];
@@ -114,12 +114,8 @@ static double AudioUserDsp_RunLowBands(double sample, uint32_t channel)
     DoubleBiquad* filter = &lowFilters[i];
     double output = sample;
     if(builtGains[i] != 0)
-      output =
-          filter->b0 * sample
-        + filter->b1 * filter->x1[channel]
-        + filter->b2 * filter->x2[channel]
-        - filter->a1 * filter->y1[channel]
-        - filter->a2 * filter->y2[channel];
+      output = filter->b0 * sample + filter->b1 * filter->x1[channel] + filter->b2 * filter->x2[channel] -
+               filter->a1 * filter->y1[channel] - filter->a2 * filter->y2[channel];
 
     filter->x2[channel] = filter->x1[channel];
     filter->x1[channel] = sample;
@@ -137,12 +133,8 @@ static float AudioUserDsp_RunHighBands(float sample, uint32_t channel)
     FloatBiquad* filter = &highFilters[i];
     float output = sample;
     if(builtGains[i + DOUBLE_PRECISION_BAND_COUNT] != 0)
-      output =
-          filter->b0 * sample
-        + filter->b1 * filter->x1[channel]
-        + filter->b2 * filter->x2[channel]
-        - filter->a1 * filter->y1[channel]
-        - filter->a2 * filter->y2[channel];
+      output = filter->b0 * sample + filter->b1 * filter->x1[channel] + filter->b2 * filter->x2[channel] -
+               filter->a1 * filter->y1[channel] - filter->a2 * filter->y2[channel];
 
     filter->x2[channel] = filter->x1[channel];
     filter->x1[channel] = sample;

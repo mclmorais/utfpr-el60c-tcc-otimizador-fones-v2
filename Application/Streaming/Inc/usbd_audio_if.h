@@ -15,7 +15,7 @@
   *                             www.st.com/SLA0044
   *
   ******************************************************************************
-  */ 
+  */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __USBD_AUDIO_IF_H
@@ -26,19 +26,15 @@
 #include "audio_sessions_usb.h"
 
 /* Exported constants --------------------------------------------------------*/
- extern USBD_AUDIO_InterfaceCallbacksfTypeDef audio_class_interface;
+extern USBD_AUDIO_InterfaceCallbacksfTypeDef audio_class_interface;
 /* Exported types ------------------------------------------------------------*/
 #if USE_AUDIO_USB_INTERRUPT
-typedef enum 
-{
-  USBD_AUDIO_PLAYBACK  = 0x01,
-  USBD_AUDIO_RECORD    = 0x02
-}USBD_AUDIO_FunctionTypedef;
+typedef enum { USBD_AUDIO_PLAYBACK = 0x01, USBD_AUDIO_RECORD = 0x02 } USBD_AUDIO_FunctionTypedef;
 #endif /* USE_AUDIO_USB_INTERRUPT*/
 /* Exported macro ------------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
 #if USE_AUDIO_USB_INTERRUPT
-int8_t USBD_AUDIO_ExecuteControl( uint8_t func, AUDIO_ControlCommand_t control , uint32_t val , uint32_t private_data);
+int8_t USBD_AUDIO_ExecuteControl(uint8_t func, AUDIO_ControlCommand_t control, uint32_t val, uint32_t private_data);
 #endif /* USE_AUDIO_USB_INTERRUPT*/
 #endif /* __USBD_AUDIO_IF_H */
 

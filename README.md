@@ -149,6 +149,32 @@ O script `tools/lcd_capture.py` lê a imagem do LCD pelo ST-LINK e salva um PNG.
 tools/lcd_capture.py lcd.png
 ```
 
+### Formatar e Analisar o Código
+
+O clang-format formata o código e o clang-tidy procura erros comuns. As regras ficam em `.clang-format` e `.clang-tidy`. As bibliotecas da ST em `Drivers/` e `Utilities/` e os headers de imagem, listados em `.clang-format-ignore`, ficam de fora.
+
+Instale as duas ferramentas pelo pip. A versão do clang-format é fixa, porque versões diferentes formatam de jeitos diferentes:
+
+```bash
+pip install clang-format==23.1.3 clang-tidy==23.1.4
+```
+
+O script `tools/lint.py` roda as ferramentas sobre o código do projeto:
+
+```bash
+tools/lint.py format
+```
+
+```bash
+tools/lint.py check
+```
+
+```bash
+tools/lint.py tidy
+```
+
+`format` reescreve os arquivos, `check` só aponta o que está fora do padrão e `tidy` roda o clang-tidy. O `tidy` usa o `compile_commands.json` gerado pelo CMake, então compile o preset **Debug** antes. A extensão da ST para o VS Code usa o clangd, que lê os mesmos arquivos: o comando **Format Document** segue o `.clang-format` e os avisos do `.clang-tidy` aparecem no editor.
+
 ## Como Usar
 
 1. **Conectar o Dispositivo**:

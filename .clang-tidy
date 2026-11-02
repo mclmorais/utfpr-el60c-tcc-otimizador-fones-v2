@@ -1,0 +1,29 @@
+---
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  misc-*,
+  performance-*,
+  readability-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-reserved-identifier,
+  -cert-dcl37-c,
+  -cert-dcl51-cpp,
+  -misc-header-include-cycle,
+  -misc-include-cleaner,
+  -performance-no-int-to-ptr,
+  -readability-braces-around-statements,
+  -readability-identifier-length,
+  -readability-implicit-bool-conversion,
+  -readability-magic-numbers,
+  -readability-math-missing-parentheses,
+  -readability-uppercase-literal-suffix,
+  -readability-use-concise-preprocessor-directives
+ExtraArgsBefore:
+  - --target=arm-none-eabi
+RemovedArgs:
+  - -fcyclomatic-complexity
+HeaderFilterRegex: 'Application[/\\]'
+ExcludeHeaderFilterRegex: '(argb8888|logo)\.h$'

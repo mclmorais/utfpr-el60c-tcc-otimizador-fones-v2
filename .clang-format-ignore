@@ -1,0 +1,6 @@
+# Bibliotecas da ST mantidas como vieram, para facilitar a atualização.
+Drivers/**
+Utilities/**
+Application/Touchscreen/Inc/*argb8888.h
+Application/Touchscreen/Inc/stlogo.h
+Application/Touchscreen/Inc/utfprlogo.h

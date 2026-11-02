@@ -3,26 +3,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#define FOREGROUND_LAYER_OFFSET  (800 * 480 * sizeof(uint16_t))  // Adjust this offset based on your needs
+#define FOREGROUND_LAYER_OFFSET (800 * 480 * sizeof(uint16_t)) // Adjust this offset based on your needs
 
 // pictures -----------------------------------------------------------
 #include "utfprlogo.h"
 
 // private defines -------------------------------------------------------------
-#define VSYNC             1
-#define VBP               1
-#define VFP               1
-#define VACT              480
-#define HSYNC             1
-#define HBP               1
-#define HFP               1
-#define HACT              400 // screen divided into two areas
+#define VSYNC 1
+#define VBP   1
+#define VFP   1
+#define VACT  480
+#define HSYNC 1
+#define HBP   1
+#define HFP   1
+#define HACT  400 // screen divided into two areas
 
-#define INVALID_AREA      0
-#define LEFT_AREA         1
-#define RIGHT_AREA        2
-#define WVGA_RES_X        800
-#define WVGA_RES_Y        480
+#define INVALID_AREA 0
+#define LEFT_AREA    1
+#define RIGHT_AREA   2
+#define WVGA_RES_X   800
+#define WVGA_RES_Y   480
 
 #define ARGB8888_BYTE_PER_PIXEL 4
 #define RGB565_BYTE_PER_PIXEL   2
@@ -32,30 +32,29 @@
 #define LAYER_BYTE_PER_PIXEL    RGB565_BYTE_PER_PIXEL
 
 #define BUTTON_BORDER_SIZE 2
-#define Y_BAR_POSITION -60
-#define EQ_PAGE_COUNT ((EQ_BAND_COUNT + NUMBER_OF_SLIDER_BUTTONS - 1) / NUMBER_OF_SLIDER_BUTTONS)
-#define MADCTR_MIRROR_XY 0xC0 // MY | MX
+#define Y_BAR_POSITION     -60
+#define EQ_PAGE_COUNT      ((EQ_BAND_COUNT + NUMBER_OF_SLIDER_BUTTONS - 1) / NUMBER_OF_SLIDER_BUTTONS)
+#define MADCTR_MIRROR_XY   0xC0 // MY | MX
 #define STEP_BUTTON_HEIGHT 36
 #define STEP_BUTTON_MARGIN 6
-#define STEP_BUTTON_GAP 4
-#define GAIN_TEXT_GAP 6
-#define MOON_RADIUS 14
+#define STEP_BUTTON_GAP    4
+#define GAIN_TEXT_GAP      6
+#define MOON_RADIUS        14
 #define MOON_BITE_OFFSET_X 7
 #define MOON_BITE_OFFSET_Y 5
-#define LOGO_INK_BLUE 24
-#define LOGO_YELLOW 0xFFCF00
+#define LOGO_INK_BLUE      24
+#define LOGO_YELLOW        0xFFCF00
 
 // private function declarations --------------------------------------
-static void     LCD_LayertInit(uint16_t LayerIndex, uint32_t Address);
-static void     Display_StartupScreen(void);
-static void     SelectTheme(bool isDark);
-static void     DrawLogo(uint16_t x, uint16_t y);
-static void     LCD_UpdateDarkModeButton(void);
-static void     LCD_UpdateBrightnessButton(void);
+static void LCD_LayertInit(uint16_t LayerIndex, uint32_t Address);
+static void Display_StartupScreen(void);
+static void SelectTheme(bool isDark);
+static void DrawLogo(uint16_t x, uint16_t y);
+static void LCD_UpdateDarkModeButton(void);
+static void LCD_UpdateBrightnessButton(void);
 
 // variables ----------------------------------------------------------
-typedef struct LcdTheme
-{
+typedef struct LcdTheme {
   uint32_t background;
   uint32_t foreground;
   uint32_t buttonIdle;
@@ -64,15 +63,15 @@ typedef struct LcdTheme
 
 static const LcdTheme themes[] = {
   {LCD_COLOR_WHITE, LCD_COLOR_BLACK, LCD_COLOR_LIGHTGRAY, LCD_COLOR_LIGHTGREEN},
-  {0xFF202020, 0xFFF0F0F0, 0xFF404040, 0xFF2E7D32}
+  {0xFF202020,      0xFFF0F0F0,      0xFF404040,          0xFF2E7D32          },
 };
 static const LcdTheme* theme = &themes[0];
 
 // !! THE NUMBER_OF_CIRCLE_BUTTONS DEFINE HAS TO BE UP TO DATE WITH THE NUMBER OF BUTTONS DEFINED HERE
 CircleButtonTypeDef circleButtons[] = {
   //  x,   y,  r,   on,     off,  pressed, independent, active
-  { 100, 440, 30, "EQ",  "", false, false, false, 0},
-  { 150, 440, 30, "Vol", "", false, false, false, 0},
+  {100, 440, 30, "EQ",  "", false, false, false, 0},
+  {150, 440, 30, "Vol", "", false, false, false, 0},
 };
 
 RectangleButton saveButton = {
@@ -82,7 +81,7 @@ RectangleButton saveButton = {
   .height = 50,
   .text = "Salvar",
   .isPressed = false,
-  .isActive = false
+  .isActive = false,
 };
 
 RectangleButton undoButton = {
@@ -92,9 +91,8 @@ RectangleButton undoButton = {
   .height = 50,
   .text = "Desfazer",
   .isPressed = false,
-  .isActive = false
+  .isActive = false,
 };
-
 
 RectangleButton resetButton = {
   .x = 20,
@@ -103,9 +101,8 @@ RectangleButton resetButton = {
   .height = 50,
   .text = "Redefinir",
   .isPressed = false,
-  .isActive = false
+  .isActive = false,
 };
-
 
 RectangleButton previousPageButton = {
   .x = 145,
@@ -114,7 +111,7 @@ RectangleButton previousPageButton = {
   .height = 50,
   .text = "<",
   .isPressed = false,
-  .isActive = false
+  .isActive = false,
 };
 
 RectangleButton nextPageButton = {
@@ -124,7 +121,7 @@ RectangleButton nextPageButton = {
   .height = 50,
   .text = ">",
   .isPressed = false,
-  .isActive = false
+  .isActive = false,
 };
 
 RectangleButton flipButton = {
@@ -134,7 +131,7 @@ RectangleButton flipButton = {
   .height = 50,
   .text = "180",
   .isPressed = false,
-  .isActive = false
+  .isActive = false,
 };
 
 static const uint8_t brightnessLevels[] = {100, 75, 50, 25};
@@ -148,7 +145,7 @@ RectangleButton brightnessButton = {
   .height = 50,
   .text = brightnessText,
   .isPressed = false,
-  .isActive = false
+  .isActive = false,
 };
 
 RectangleButton darkModeButton = {
@@ -158,20 +155,20 @@ RectangleButton darkModeButton = {
   .height = 50,
   .text = "",
   .isPressed = false,
-  .isActive = false
+  .isActive = false,
 };
 
 static uint8_t eqPage = 0;
 
 SliderKnob sliderKnobs[] = {
-  { 200 + 50, 70, 60, 320, 230, 20, 5, 7},
-  { 200 + 110, 70, 60, 320, 230, 20, 5, 7},
-  { 200 + 170, 70, 60, 320, 230, 20, 5, 7},
-  { 200 + 230, 70, 60, 320, 230, 20, 5, 7},
-  { 200 + 290, 70, 60, 320, 230, 20, 5, 7},
-  { 200 + 350, 70, 60, 320, 230, 20, 5, 7},
-  { 200 + 410, 70, 60, 320, 230, 20, 5, 7},
-  { 200 + 470, 70, 60, 320, 230, 20, 5, 7}
+  {200 + 50,  70, 60, 320, 230, 20, 5, 7},
+  {200 + 110, 70, 60, 320, 230, 20, 5, 7},
+  {200 + 170, 70, 60, 320, 230, 20, 5, 7},
+  {200 + 230, 70, 60, 320, 230, 20, 5, 7},
+  {200 + 290, 70, 60, 320, 230, 20, 5, 7},
+  {200 + 350, 70, 60, 320, 230, 20, 5, 7},
+  {200 + 410, 70, 60, 320, 230, 20, 5, 7},
+  {200 + 470, 70, 60, 320, 230, 20, 5, 7},
 };
 
 // external variable declarations -------------------------------------
@@ -191,7 +188,8 @@ void LCD_Init(bool isDark)
   uint8_t lcd_status = LCD_OK;
 
   lcd_status = BSP_LCD_Init();
-  while(lcd_status != LCD_OK);
+  while(lcd_status != LCD_OK)
+    ;
 
   // Initialize LTDC layer 0 iused for Hint
   LCD_LayertInit(0, LAYER0_ADDRESS);
@@ -282,8 +280,8 @@ void LCD_UpdateState()
     // displays background text
     BSP_LCD_SetBackColor(LCD_COLOR_UTFPRYELLOW);
     BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
-    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION + 15, (uint8_t *)"V2.0a", CENTER_MODE);
-    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION + 45, (uint8_t *)"Branch Biquad", CENTER_MODE);
+    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION + 15, (uint8_t*)"V2.0a", CENTER_MODE);
+    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION + 45, (uint8_t*)"Branch Biquad", CENTER_MODE);
   }
 
   // circle buttons are always updated
@@ -299,9 +297,10 @@ void LCD_UpdateState()
 
     BSP_LCD_SetTextColor(theme->foreground);
     BSP_LCD_SetBackColor(theme->background);
-    BSP_LCD_DisplayStringAt(circleButtons[i].x - circleButtons[i].radius - 12, circleButtons[i].y - circleButtons[i].radius - 24, (uint8_t *)circleButtons[i].onText, LEFT_MODE);
-
-
+    BSP_LCD_DisplayStringAt(circleButtons[i].x - circleButtons[i].radius - 12,
+                            circleButtons[i].y - circleButtons[i].radius - 24,
+                            (uint8_t*)circleButtons[i].onText,
+                            LEFT_MODE);
   }
 
   LCD_UpdateRectangleButton(&flipButton);
@@ -402,7 +401,9 @@ static void DrawLogo(uint16_t x, uint16_t y)
       uint32_t color = 0xFF000000;
       for(uint8_t shift = 0; shift <= 16; shift += 8)
       {
-        uint32_t channel = (paper * ((theme->background >> shift) & 0xFF) + ink * ((theme->foreground >> shift) & 0xFF) + yellow * ((LOGO_YELLOW >> shift) & 0xFF)) / 255;
+        uint32_t channel = (paper * ((theme->background >> shift) & 0xFF) +
+                            ink * ((theme->foreground >> shift) & 0xFF) + yellow * ((LOGO_YELLOW >> shift) & 0xFF)) /
+                           255;
         color |= channel << shift;
       }
       BSP_LCD_DrawPixel(x + column, y + row, color);
@@ -413,13 +414,16 @@ static void DrawLogo(uint16_t x, uint16_t y)
 void LCD_UpdateRectangleButton(RectangleButton* button)
 {
   BSP_LCD_SetTextColor(theme->foreground);
-  BSP_LCD_FillRect(button->x - BUTTON_BORDER_SIZE, button->y - BUTTON_BORDER_SIZE, button->width + (2*BUTTON_BORDER_SIZE), button->height + (2*BUTTON_BORDER_SIZE));
+  BSP_LCD_FillRect(button->x - BUTTON_BORDER_SIZE,
+                   button->y - BUTTON_BORDER_SIZE,
+                   button->width + (2 * BUTTON_BORDER_SIZE),
+                   button->height + (2 * BUTTON_BORDER_SIZE));
   BSP_LCD_SetTextColor(button->isActive ? theme->buttonActive : theme->buttonIdle);
   BSP_LCD_FillRect(button->x, button->y, button->width, button->height);
 
   BSP_LCD_SetBackColor(button->isActive ? theme->buttonActive : theme->buttonIdle);
   BSP_LCD_SetTextColor(theme->foreground);
-  BSP_LCD_DisplayStringAt(button->x + 5, button->y + button->height / 2 - 6, (uint8_t *)button->text, LEFT_MODE);
+  BSP_LCD_DisplayStringAt(button->x + 5, button->y + button->height / 2 - 6, (uint8_t*)button->text, LEFT_MODE);
 }
 
 int8_t LCD_ColumnToBand(uint8_t column)
@@ -449,13 +453,19 @@ static void LCD_DisplayStepButton(SliderKnob* knob, int8_t step)
   sFONT* font = BSP_LCD_GetFont();
 
   BSP_LCD_SetTextColor(theme->foreground);
-  BSP_LCD_FillRect(x - BUTTON_BORDER_SIZE, y - BUTTON_BORDER_SIZE, width + (2*BUTTON_BORDER_SIZE), STEP_BUTTON_HEIGHT + (2*BUTTON_BORDER_SIZE));
+  BSP_LCD_FillRect(x - BUTTON_BORDER_SIZE,
+                   y - BUTTON_BORDER_SIZE,
+                   width + (2 * BUTTON_BORDER_SIZE),
+                   STEP_BUTTON_HEIGHT + (2 * BUTTON_BORDER_SIZE));
   BSP_LCD_SetTextColor(theme->buttonIdle);
   BSP_LCD_FillRect(x, y, width, STEP_BUTTON_HEIGHT);
 
   BSP_LCD_SetBackColor(theme->buttonIdle);
   BSP_LCD_SetTextColor(theme->foreground);
-  BSP_LCD_DisplayStringAt(x + (width - font->Width) / 2, y + (STEP_BUTTON_HEIGHT - font->Height) / 2, (uint8_t *)(step > 0 ? "+" : "-"), LEFT_MODE);
+  BSP_LCD_DisplayStringAt(x + (width - font->Width) / 2,
+                          y + (STEP_BUTTON_HEIGHT - font->Height) / 2,
+                          (uint8_t*)(step > 0 ? "+" : "-"),
+                          LEFT_MODE);
 }
 
 int8_t LCD_StepButtonAt(uint8_t knobIndex, uint16_t x, uint16_t y)
@@ -504,7 +514,7 @@ void LCD_DisplayEqPage(void)
     uint16_t labelWidth = strlen(label) * BSP_LCD_GetFont()->Width;
     BSP_LCD_SetBackColor(theme->background);
     BSP_LCD_SetTextColor(theme->foreground);
-    BSP_LCD_DisplayStringAt(knob->sliderX + (knob->sliderWidth - labelWidth) / 2, 0, (uint8_t *)label, LEFT_MODE);
+    BSP_LCD_DisplayStringAt(knob->sliderX + (knob->sliderWidth - labelWidth) / 2, 0, (uint8_t*)label, LEFT_MODE);
 
     LCD_DisplayStepButton(knob, 1);
     LCD_DisplayStepButton(knob, -1);
@@ -527,7 +537,7 @@ void LCD_InitSlider(uint8_t knobIndex)
   BSP_LCD_FillRect(knob->sliderX, knob->sliderY, knob->sliderWidth, knob->sliderHeight);
 
   BSP_LCD_SetTextColor(theme->foreground);
-  BSP_LCD_FillRect((knob->sliderX + (knob->sliderWidth / 2)-5), knob->sliderY + 10, 10, knob->sliderHeight - 20);
+  BSP_LCD_FillRect((knob->sliderX + (knob->sliderWidth / 2) - 5), knob->sliderY + 10, 10, knob->sliderHeight - 20);
 }
 
 void LCD_DisplayKnob(uint8_t knobIndex, int16_t gain)
@@ -542,7 +552,7 @@ void LCD_DisplayKnob(uint8_t knobIndex, int16_t gain)
     BSP_LCD_FillRect(knob->sliderX + 3, knob->knobY - 5, knob->sliderWidth - 3, 12);
 
     BSP_LCD_SetTextColor(theme->foreground);
-    BSP_LCD_FillRect((knob->sliderX + (knob->sliderWidth / 2)-5), knob->knobY - 5, 10, 12);
+    BSP_LCD_FillRect((knob->sliderX + (knob->sliderWidth / 2) - 5), knob->knobY - 5, 10, 12);
   }
 
   BSP_LCD_SetTextColor(theme->foreground);
@@ -555,7 +565,13 @@ void LCD_DisplayKnob(uint8_t knobIndex, int16_t gain)
 
   char text[12];
   int16_t magnitude = abs(gain);
-  sprintf(text, "%s%d.%d", gain < 0 ? "-" : gain > 0 ? "+" : "", magnitude / EQ_GAIN_STEPS_PER_DB, magnitude % EQ_GAIN_STEPS_PER_DB);
+  sprintf(text,
+          "%s%d.%d",
+          gain < 0   ? "-"
+          : gain > 0 ? "+"
+                     : "",
+          magnitude / EQ_GAIN_STEPS_PER_DB,
+          magnitude % EQ_GAIN_STEPS_PER_DB);
 
   // Font24 fits only 3 characters in a column, and "-12.5" needs 5.
   sFONT* font = BSP_LCD_GetFont();
@@ -566,7 +582,7 @@ void LCD_DisplayKnob(uint8_t knobIndex, int16_t gain)
   BSP_LCD_FillRect(knob->sliderX, textY, knob->sliderWidth, Font16.Height);
   BSP_LCD_SetBackColor(theme->background);
   BSP_LCD_SetTextColor(theme->foreground);
-  BSP_LCD_DisplayStringAt(knob->sliderX + (knob->sliderWidth - textWidth) / 2, textY, (uint8_t *)text, LEFT_MODE);
+  BSP_LCD_DisplayStringAt(knob->sliderX + (knob->sliderWidth - textWidth) / 2, textY, (uint8_t*)text, LEFT_MODE);
   BSP_LCD_SetFont(font);
 }
 
@@ -582,7 +598,8 @@ int16_t LCD_TranslateKnobPositionToGain(uint8_t knobIndex, uint16_t knobY)
 {
   SliderKnob* knob = &sliderKnobs[knobIndex];
   int32_t bottom = knob->sliderY + knob->sliderHeight;
-  int32_t gain = EQ_GAIN_MIN_DB + ((bottom - knobY) * (EQ_GAIN_MAX_DB - EQ_GAIN_MIN_DB) + knob->sliderHeight / 2) / knob->sliderHeight;
+  int32_t gain = EQ_GAIN_MIN_DB +
+                 ((bottom - knobY) * (EQ_GAIN_MAX_DB - EQ_GAIN_MIN_DB) + knob->sliderHeight / 2) / knob->sliderHeight;
   if(gain < EQ_GAIN_MIN_DB)
     gain = EQ_GAIN_MIN_DB;
   if(gain > EQ_GAIN_MAX_DB)
@@ -599,13 +616,13 @@ void LCD_UpdateButton(uint8_t buttonIndex, bool isPressed, bool shouldToggleOthe
   LCD_UpdateState();
 }
 
-void LCD_UpdateWatchdog (uint32_t* watchdogCounter)
+void LCD_UpdateWatchdog(uint32_t* watchdogCounter)
 {
   char text[5];
   sprintf(text, "%04u", ((unsigned int)*watchdogCounter));
   BSP_LCD_SetBackColor(theme->background);
   BSP_LCD_SetTextColor(theme->foreground);
-  BSP_LCD_DisplayStringAt(0, 0, (uint8_t *)text, RIGHT_MODE);
+  BSP_LCD_DisplayStringAt(0, 0, (uint8_t*)text, RIGHT_MODE);
   *watchdogCounter = *watchdogCounter + 1;
   if(*watchdogCounter > 9999)
     *watchdogCounter = 0;

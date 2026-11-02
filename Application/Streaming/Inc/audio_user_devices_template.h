@@ -16,30 +16,28 @@
   *
   ******************************************************************************
   */
- 
+
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __AUDIO_USER_DEVICES_H
 #define __AUDIO_USER_DEVICES_H
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
 /* add hardware (mic/speaker) bsp  include files */
-   
+
 /* Exported constants --------------------------------------------------------*/
 /* Exported types ------------------------------------------------------------*/
-#if  USE_USB_AUDIO_RECORDING
-typedef struct
-{
+#if USE_USB_AUDIO_RECORDING
+typedef struct {
   /* define specifc mic node fields */
   uint8_t dummy;
-}AUDIO_MicrophoneSpecificParams_t;
+} AUDIO_MicrophoneSpecificParams_t;
 #endif /* USE_USB_AUDIO_RECORDING */
 #if USE_USB_AUDIO_PLAYBACK
-typedef struct
-{
+typedef struct {
   /* define specifc speaker node fields */
   uint8_t dummy;
 } AUDIO_SpeakerSpecificParms_t;
@@ -49,7 +47,7 @@ typedef struct
 #if USE_USB_AUDIO_PLAYBACK
 #define AUDIO_SPEAKER_USER_Init TEMPLATE_AUDIO_SpeakerInit
 #endif /* USE_USB_AUDIO_PLAYBACK */
-#if  USE_USB_AUDIO_RECORDING
+#if USE_USB_AUDIO_RECORDING
 #define AUDIO_USER_MicInit TEMPLATE_AUDIO_MicInit
 #endif /* USE_USB_AUDIO_RECORDING */
 
@@ -57,5 +55,5 @@ typedef struct
 #ifdef __cplusplus
 }
 #endif
-#endif  /* __AUDIO_USER_DEVICES_H */
+#endif /* __AUDIO_USER_DEVICES_H */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
