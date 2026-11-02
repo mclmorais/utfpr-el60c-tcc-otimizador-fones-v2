@@ -31,7 +31,6 @@ target_sources(${PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/Drivers/BSP/STM32F769I-Discovery/stm32f769i_discovery_lcd.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Drivers/BSP/STM32F769I-Discovery/stm32f769i_discovery_sdram.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Drivers/BSP/STM32F769I-Discovery/stm32f769i_discovery_ts.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Drivers/STM32F7xx_HAL_Driver/Src/Legacy/stm32f7xx_hal_can.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_cortex.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_dfsdm.c"
