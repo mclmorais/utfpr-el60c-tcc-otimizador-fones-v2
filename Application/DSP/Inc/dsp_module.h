@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define PI 3.14159265358979323846
+
 // One stage of the Chain in audio_user_dsp.c. Process gets both channels of a
 // packet together, so a Module may mix them, and works in place without
 // saturating: the Chain saturates to 16 bits once, after the last Module.

@@ -2,7 +2,6 @@
 #include "audio_user_dsp.h"
 #include <math.h>
 
-#define PI                     3.14159265358979323846
 #define BAND_BANDWIDTH_OCTAVES (1.0 / 3.0)
 
 // Float round-off recirculates through the near-unit-circle poles of the
