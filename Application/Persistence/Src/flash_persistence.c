@@ -8,6 +8,8 @@
 // Sectors saved before the brightness existed read 0xFFFFFFFF here, which loads as full brightness.
 #define FLASH_BRIGHTNESS_WORD (EQ_BAND_COUNT + 2)
 #define DEFAULT_BRIGHTNESS 100
+// Sectors saved before the dark mode existed read 0xFFFFFFFF here, which loads as the light theme.
+#define FLASH_DARK_WORD (EQ_BAND_COUNT + 3)
 
 static volatile uint32_t* const words = (volatile uint32_t*)FLASH_USER_START_ADDR;
 
@@ -52,6 +54,7 @@ static void WriteSector(const volatile int16_t* gains, DisplaySettings display)
   }
   HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_FLIP_WORD * 4, display.isFlipped);
   HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_BRIGHTNESS_WORD * 4, display.brightness);
+  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_DARK_WORD * 4, display.isDark);
   HAL_FLASH_Lock();
 }
 
@@ -77,12 +80,13 @@ void FlashPersistence_Restore()
 
 DisplaySettings FlashPersistence_ReadDisplay()
 {
-  DisplaySettings display = {false, DEFAULT_BRIGHTNESS};
+  DisplaySettings display = {false, DEFAULT_BRIGHTNESS, false};
   if(SavedGainScale() == 0)
     return display;
 
   display.isFlipped = words[FLASH_FLIP_WORD] == 1;
   if(words[FLASH_BRIGHTNESS_WORD] >= 1 && words[FLASH_BRIGHTNESS_WORD] <= 100)
     display.brightness = words[FLASH_BRIGHTNESS_WORD];
+  display.isDark = words[FLASH_DARK_WORD] == 1;
   return display;
 }
