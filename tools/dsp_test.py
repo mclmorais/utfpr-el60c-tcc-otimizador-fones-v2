@@ -436,29 +436,57 @@ def mirrored_input_mirrors_output(dsp):
     return []
 
 
+def full_scale_tone_errors(dsp, preset, frequency, right_sign):
+    """Play a full-scale sine, the right channel times right_sign, and measure each channel against full scale.
+
+    Returns (channel name, level in dB re full scale, largest deviation from the fitted sine as a fraction of full scale).
+    """
+    full_scale = 32767
+    with virtualizer_on(dsp, preset):
+        frames = SETTLE_PACKETS * FRAMES_PER_PACKET + MEASURE_FRAMES
+        phase = 2 * np.pi * frequency * np.arange(frames) / SAMPLE_RATE
+        tone = np.round(full_scale * np.sin(phase))
+        output = dsp.process(np.stack([tone, right_sign * tone], axis=1))[-MEASURE_FRAMES:].astype(float)
+    basis = np.exp(-1j * phase[-MEASURE_FRAMES:])
+    results = []
+    for channel, name in enumerate(("left", "right")):
+        projection = 2 * output[:, channel] @ basis / MEASURE_FRAMES
+        fitted = np.real(projection * np.conj(basis))
+        shape_error = np.max(np.abs(output[:, channel] - fitted)) / full_scale
+        results.append((name, 20 * np.log10(np.abs(projection) / full_scale), shape_error))
+    return results
+
+
 @case
 def full_scale_mono_does_not_saturate(dsp):
-    """A full-scale mono sine where the mono gain is highest keeps its level within 1 dB and its shape within 1%."""
+    """A full-scale mono sine keeps its level within 1 dB and its shape within 1%."""
     errors = []
     frequencies = np.array(dsp.band_centres)
-    full_scale = 32767
     for preset in dsp.presets:
         with virtualizer_on(dsp, preset):
             gains = np.maximum(*response_db(dsp, frequencies))
-            frequency = frequencies[np.argmax(gains)]
-            frames = SETTLE_PACKETS * FRAMES_PER_PACKET + MEASURE_FRAMES
-            phase = 2 * np.pi * frequency * np.arange(frames) / SAMPLE_RATE
-            tone = np.round(full_scale * np.sin(phase))
-            output = dsp.process(np.stack([tone, tone], axis=1))[-MEASURE_FRAMES:].astype(float)
-        basis = np.exp(-1j * phase[-MEASURE_FRAMES:])
-        for channel, name in enumerate(("left", "right")):
-            projection = 2 * output[:, channel] @ basis / MEASURE_FRAMES
-            level_db = 20 * np.log10(np.abs(projection) / full_scale)
-            fitted = np.real(projection * np.conj(basis))
-            shape_error = np.max(np.abs(output[:, channel] - fitted)) / full_scale
+        frequency = frequencies[np.argmax(gains)]
+        for name, level_db, shape_error in full_scale_tone_errors(dsp, preset, frequency, 1):
             if abs(level_db) > 1 or shape_error > 0.01:
                 errors.append(f"{preset.name}, {name} at {frequency:g} Hz: level {level_db:+.2f} dB, "
                               f"off the sine by up to {100 * shape_error:.2f}% of full scale")
+    raise_errors(errors)
+    return []
+
+
+@case
+def full_scale_antiphase_does_not_saturate(dsp):
+    """A full-scale sine with the right channel inverted never rises above full scale or clips.
+
+    Mono passes unchanged, so only an inverted pair gives the crossed path anything to add.
+    """
+    errors = []
+    for preset in dsp.presets:
+        for frequency in (100, 1000, dsp.band_centres[-1]):
+            for name, level_db, shape_error in full_scale_tone_errors(dsp, preset, frequency, -1):
+                if level_db > 1 or shape_error > 0.01:
+                    errors.append(f"{preset.name}, {name} at {frequency:g} Hz: level {level_db:+.2f} dB, "
+                                  f"off the sine by up to {100 * shape_error:.2f}% of full scale")
     raise_errors(errors)
     return []
 
