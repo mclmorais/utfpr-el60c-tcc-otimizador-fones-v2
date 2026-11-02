@@ -32,9 +32,13 @@ O projeto foi desenvolvido para a placa de desenvolvimento **STM32F769I-Discover
 ├── Application/
 │   ├── DSP/                    # Processamento Digital de Sinais
 │   │   ├── Inc/
-│   │   │   └── audio_user_dsp.h
+│   │   │   ├── audio_user_dsp.h
+│   │   │   ├── cycle_counter.h
+│   │   │   ├── dsp_module.h        # Contrato de um Módulo
+│   │   │   └── equalizer.h
 │   │   └── Src/
-│   │       └── audio_user_dsp.c    # Filtros biquad e equalização
+│   │       ├── audio_user_dsp.c    # Cadeia de módulos e medição de ciclos
+│   │       └── equalizer.c         # Equalizador: filtros biquad de 31 Bandas
 │   ├── Persistence/            # Persistência de dados
 │   │   ├── Inc/
 │   │   │   └── flash_persistence.h
@@ -207,7 +211,7 @@ tools/usb_audio_probe.py
 
 Sem argumento, ele usa o `build/Debug/horoscope.elf`. A linha `idle` mostra o estado antes do tom. Ela já aparece como `STARTED` se outro programa estiver tocando áudio na placa.
 
-A última linha antes do resultado, `dsp worst case`, mostra quanto do orçamento de 1 ms por pacote o DSP consome. O firmware mede com o contador de ciclos DWT do Cortex-M7 cada chamada de `AudioUserDsp_Process` e guarda o maior valor desde a inicialização na variável global `dspWorstCaseCycles`. A sonda lê essa variável pelo ST-LINK, pelo símbolo do ELF, e mostra os ciclos e a porcentagem do orçamento de 216.000 ciclos (1 ms a 216 MHz). O valor inclui as interrupções que preemptam o DSP e a recompilação de uma Banda por pacote depois de uma mudança de ganho. A medição só tem sentido depois de o tom tocar por alguns segundos.
+As linhas abaixo de `dsp worst case` mostram quanto do orçamento de 1 ms por pacote o DSP consome: uma linha por Módulo, na ordem da Cadeia, e uma linha para a Cadeia inteira. O firmware mede com o contador de ciclos DWT do Cortex-M7 cada Módulo e cada chamada de `AudioUserDsp_Process`, e guarda o maior valor desde a inicialização nas variáveis globais `moduleWorstCaseCycles` (uma posição por Módulo) e `chainWorstCaseCycles`. A Cadeia inclui também a conversão do pacote para `float` e a saturação de volta para 16 bits. A sonda lê essas variáveis pelo ST-LINK, pelo símbolo do ELF, e mostra os ciclos e a porcentagem do orçamento de 216.000 ciclos (1 ms a 216 MHz). Os nomes dos Módulos ficam na lista `MODULES` da sonda; se a Cadeia do firmware tiver outro tamanho, a sonda para e pede que a lista seja atualizada. O valor inclui as interrupções que preemptam o DSP e a recompilação de uma Banda por pacote depois de uma mudança de ganho. A medição só tem sentido depois de o tom tocar por alguns segundos.
 
 ### Testar o DSP no PC
 
@@ -306,23 +310,25 @@ O sistema utiliza filtros biquad do tipo "peaking equalizer" para cada banda de 
 
 ### Arquitetura de Processamento
 
+O callback de USB OUT entrega cada pacote, com quadros estéreo de 16 bits intercalados, a `AudioUserDsp_Process`, que o processa no lugar. Ela separa o pacote em dois blocos `float`, esquerdo e direito, e passa os dois blocos juntos por cada Módulo da Cadeia, em ordem. Só depois do último Módulo ela satura para 16 bits e intercala de volta; nenhum Módulo satura no meio da Cadeia. A Cadeia é uma lista fixa, definida em tempo de compilação em `audio_user_dsp.c`. Hoje ela tem só o Equalizador.
+
 ```mermaid
 flowchart LR
-    A[USB Audio Input] --> B[Buffer]
-    B --> C[DSP Processing]
-    C --> D[I²S Output]
-    D --> E[Codec]
-    E --> F[Fone de Ouvido]
-    C --> G[Filtros Biquad<br/>31 bandas]
-    G --> C
-    C --> H[Persistência Flash]
-    H --> C
-    
+    A[USB Audio Input] --> B[Separa em blocos float<br/>esquerdo e direito]
+    subgraph Cadeia[Cadeia de módulos]
+        C[Equalizador<br/>31 Bandas biquad]
+    end
+    B --> C
+    C --> D[Satura para 16 bits<br/>e intercala]
+    D --> E[I²S Output]
+    E --> F[Codec]
+    F --> G[Fone de Ouvido]
+    H[Persistência Flash] --> C
+
     style A fill:#e1f5ff
-    style C fill:#fff4e1
-    style G fill:#ffe1f5
+    style C fill:#ffe1f5
     style H fill:#e1ffe1
-    style F fill:#e1f5ff
+    style G fill:#e1f5ff
 ```
 
 ## Referências

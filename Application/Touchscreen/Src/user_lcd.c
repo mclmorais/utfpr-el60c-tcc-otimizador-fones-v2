@@ -1,5 +1,5 @@
 #include "user_lcd.h"
-#include "audio_user_dsp.h"
+#include "equalizer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

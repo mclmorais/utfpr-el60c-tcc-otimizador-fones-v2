@@ -23,6 +23,8 @@
 
 _Static_assert(USB_AUDIO_CONFIG_PLAY_DEF_FREQ == AUDIO_USER_DSP_SAMPLE_RATE,
                "AudioUserDsp_Process designs its filters for AUDIO_USER_DSP_SAMPLE_RATE");
+_Static_assert(USBD_AUDIO_CONFIG_PLAY_MAX_PACKET_SIZE <= AUDIO_USER_DSP_MAX_PACKET_FRAMES * 4,
+               "AudioUserDsp_Process holds one packet in blocks of AUDIO_USER_DSP_MAX_PACKET_FRAMES frames");
 
 /* Private macros ------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/

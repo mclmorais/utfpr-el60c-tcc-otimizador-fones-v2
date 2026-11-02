@@ -1,5 +1,5 @@
 #include "flash_persistence.h"
-#include "audio_user_dsp.h"
+#include "equalizer.h"
 
 #define FLASH_LAYOUT_TAG          0x32335145
 #define FLASH_WHOLE_DB_LAYOUT_TAG 0x31335145

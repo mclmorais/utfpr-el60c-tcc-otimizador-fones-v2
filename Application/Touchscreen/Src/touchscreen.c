@@ -20,7 +20,7 @@
 #include "main.h"
 #include "user_lcd.h"
 #include "flash_persistence.h"
-#include "audio_user_dsp.h"
+#include "equalizer.h"
 /** @addtogroup STM32F7xx_HAL_Examples
  * @{
  */
