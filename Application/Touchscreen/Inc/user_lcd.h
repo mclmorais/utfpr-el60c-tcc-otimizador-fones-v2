@@ -21,12 +21,18 @@
 #define INTERNAL_BUFFER_START_ADDRESS \
   LCD_BG_LAYER_ADDRESS + (LCD_SCREEN_WIDTH * LCD_SCREEN_HEIGHT * ARGB8888_BYTE_PER_PIXEL)
 
-#define NUMBER_OF_CIRCLE_BUTTONS 1
 #define NUMBER_OF_SLIDER_BUTTONS 8
 
 #define LCD_COLOR_UTFPRYELLOW ((uint32_t)0xFFF6C500)
 
 // typedefs ----------------------------------------------------------
+// One round button per Module screen on the bottom left; at most one screen is open.
+typedef enum CircleButtonIndex {
+  EQ_CIRCLE_BUTTON,
+  VIRT_CIRCLE_BUTTON,
+  NUMBER_OF_CIRCLE_BUTTONS,
+} CircleButtonIndex;
+
 typedef struct CircleButton {
   uint16_t x;
   uint16_t y;
@@ -72,6 +78,7 @@ int8_t LCD_ColumnToBand(uint8_t column);
 void LCD_DisplayEqPage(void);
 void LCD_ChangeEqPage(int8_t step);
 void LCD_UpdateRectangleButton(RectangleButton* button);
+void LCD_UpdateSwitchButton(RectangleButton* button, bool isOn);
 void LCD_UpdateState();
 void LCD_InitSlider(uint8_t knobIndex);
 void LCD_SetFlip(bool isFlipped);
@@ -81,6 +88,8 @@ void LCD_SetDarkMode(bool isDark);
 
 extern CircleButtonTypeDef circleButtons[];
 extern SliderKnob sliderKnobs[];
+extern RectangleButton moduleSwitchButton;
+extern RectangleButton presetButtons[];
 extern RectangleButton saveButton;
 extern RectangleButton resetButton;
 extern RectangleButton undoButton;

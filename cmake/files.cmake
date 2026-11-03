@@ -1,6 +1,8 @@
 # Add sources to executable/library
 target_sources(${PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/DSP/Src/audio_user_dsp.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Application/DSP/Src/equalizer.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Application/DSP/Src/virtualizer.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/Persistence/Src/flash_persistence.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/SW4STM32/startup_stm32f769xx.s"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/Streaming/Src/audio_speaker_node.c"
@@ -17,6 +19,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/USB_Device_Audio/Src/usbd_ctlreq.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/USB_Device_Audio/Src/usbd_desc.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/USB_Device_Audio/Src/usbd_ioreq.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Application/User/Src/cycle_counter.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/User/Src/main.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/User/Src/stm32f7xx_hal_msp.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/Application/User/Src/stm32f7xx_it.c"

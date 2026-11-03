@@ -1,5 +1,6 @@
 #include "flash_persistence.h"
-#include "audio_user_dsp.h"
+#include "equalizer.h"
+#include "virtualizer.h"
 
 #define FLASH_LAYOUT_TAG          0x32335145
 #define FLASH_WHOLE_DB_LAYOUT_TAG 0x31335145
@@ -10,6 +11,12 @@
 #define DEFAULT_BRIGHTNESS    100
 // Sectors saved before the dark mode existed read 0xFFFFFFFF here, which loads as the light theme.
 #define FLASH_DARK_WORD (EQ_BAND_COUNT + 3)
+// Sectors saved before the Equalizer switch existed read 0xFFFFFFFF here, which loads as on.
+#define FLASH_EQ_ENABLED_WORD (EQ_BAND_COUNT + 4)
+// Sectors saved before the Virtualization existed read 0xFFFFFFFF here, which loads as off.
+#define FLASH_VIRT_ENABLED_WORD (EQ_BAND_COUNT + 5)
+// Sectors saved before the Presets existed read 0xFFFFFFFF here, which is out of range and loads as the first Preset, Padrao.
+#define FLASH_CROSSFEED_PRESET_WORD (EQ_BAND_COUNT + 6)
 
 static volatile uint32_t* const words = (volatile uint32_t*)FLASH_USER_START_ADDR;
 
@@ -55,6 +62,9 @@ static void WriteSector(const volatile int16_t* gains, DisplaySettings display)
   HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_FLIP_WORD * 4, display.isFlipped);
   HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_BRIGHTNESS_WORD * 4, display.brightness);
   HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_DARK_WORD * 4, display.isDark);
+  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_EQ_ENABLED_WORD * 4, eqEnabled);
+  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_VIRT_ENABLED_WORD * 4, virtEnabled);
+  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, FLASH_USER_START_ADDR + FLASH_CROSSFEED_PRESET_WORD * 4, crossfeedPreset);
   HAL_FLASH_Lock();
 }
 
@@ -63,19 +73,31 @@ void FlashPersistence_Write(DisplaySettings display)
   WriteSector(eqGains, display);
 }
 
-void FlashPersistence_WriteDisplay(DisplaySettings display)
+void FlashPersistence_WriteSettings(DisplaySettings display)
 {
-  // Rewrites the last saved gains, so a display change never saves EQ edits the user has not saved.
+  // Rewrites the last saved gains, so a setting saved on touch never saves EQ edits the user has not saved.
   int16_t savedGains[EQ_BAND_COUNT];
   for(uint32_t i = 0; i < EQ_BAND_COUNT; i++)
     savedGains[i] = ReadSavedGain(i);
   WriteSector(savedGains, display);
 }
 
-void FlashPersistence_Restore()
+void FlashPersistence_RestoreGains()
 {
   for(uint32_t i = 0; i < EQ_BAND_COUNT; i++)
     eqGains[i] = ReadSavedGain(i);
+}
+
+void FlashPersistence_Restore()
+{
+  FlashPersistence_RestoreGains();
+
+  bool hasSavedSettings = SavedGainScale() != 0;
+  eqEnabled = !hasSavedSettings || words[FLASH_EQ_ENABLED_WORD] != 0;
+  virtEnabled = hasSavedSettings && words[FLASH_VIRT_ENABLED_WORD] == 1;
+  crossfeedPreset = hasSavedSettings && words[FLASH_CROSSFEED_PRESET_WORD] < CROSSFEED_PRESET_COUNT
+                        ? (uint8_t)words[FLASH_CROSSFEED_PRESET_WORD]
+                        : 0;
 }
 
 DisplaySettings FlashPersistence_ReadDisplay()

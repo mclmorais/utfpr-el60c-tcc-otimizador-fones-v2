@@ -20,7 +20,8 @@
 #include "main.h"
 #include "user_lcd.h"
 #include "flash_persistence.h"
-#include "audio_user_dsp.h"
+#include "equalizer.h"
+#include "virtualizer.h"
 /** @addtogroup STM32F7xx_HAL_Examples
  * @{
  */
@@ -79,6 +80,12 @@ static void MarkEqEdited(void)
   }
 }
 
+// The edges do not count, as for every button on the screens.
+static bool IsInside(const RectangleButton* button, uint16_t x, uint16_t y)
+{
+  return x > button->x && x < button->x + button->width && y > button->y && y < button->y + button->height;
+}
+
 static DisplaySettings CurrentDisplay(void)
 {
   return (DisplaySettings){flipButton.isActive, lcdBrightness, darkModeButton.isActive};
@@ -109,7 +116,7 @@ void Touchscreen_ButtonHandler(void)
       return;
 
     isTapLatched = false;
-    for(uint8_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++)
+    for(uint32_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++)
     {
       if(++circleButtons[i].debounceTimer > CIRCLE_BUTTON_DEBOUNCE_TIMER)
         circleButtons[i].debounceTimer = CIRCLE_BUTTON_DEBOUNCE_TIMER;
@@ -135,7 +142,7 @@ void Touchscreen_ButtonHandler(void)
     touchYPosition = BSP_LCD_GetYSize() - 1 - touchYPosition;
   }
 
-  for(uint8_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++)
+  for(uint32_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++)
   {
     if((touchYPosition > circleButtons[i].y - circleButtons[i].radius) &&
        (touchYPosition < circleButtons[i].y + circleButtons[i].radius))
@@ -154,132 +161,166 @@ void Touchscreen_ButtonHandler(void)
     }
   }
 
-  if(touchXPosition > flipButton.x && touchXPosition < flipButton.x + flipButton.width &&
-     touchYPosition > flipButton.y && touchYPosition < flipButton.y + flipButton.height)
+  if(IsInside(&flipButton, touchXPosition, touchYPosition))
   {
     if(!isTapLatched)
     {
       isTapLatched = true;
       LCD_SetFlip(!flipButton.isActive);
-      FlashPersistence_WriteDisplay(CurrentDisplay());
+      FlashPersistence_WriteSettings(CurrentDisplay());
     }
 
     return;
   }
 
-  if(touchXPosition > brightnessButton.x && touchXPosition < brightnessButton.x + brightnessButton.width &&
-     touchYPosition > brightnessButton.y && touchYPosition < brightnessButton.y + brightnessButton.height)
+  if(IsInside(&brightnessButton, touchXPosition, touchYPosition))
   {
     if(!isTapLatched)
     {
       isTapLatched = true;
       LCD_CycleBrightness();
-      FlashPersistence_WriteDisplay(CurrentDisplay());
+      FlashPersistence_WriteSettings(CurrentDisplay());
     }
 
     return;
   }
 
-  if(touchXPosition > darkModeButton.x && touchXPosition < darkModeButton.x + darkModeButton.width &&
-     touchYPosition > darkModeButton.y && touchYPosition < darkModeButton.y + darkModeButton.height)
+  if(IsInside(&darkModeButton, touchXPosition, touchYPosition))
   {
     if(!isTapLatched)
     {
       isTapLatched = true;
       LCD_SetDarkMode(!darkModeButton.isActive);
-      FlashPersistence_WriteDisplay(CurrentDisplay());
+      FlashPersistence_WriteSettings(CurrentDisplay());
     }
 
     return;
   }
 
-  if(circleButtons[0].isActive)
+  if(circleButtons[VIRT_CIRCLE_BUTTON].isActive)
   {
-    if(touchYPosition > previousPageButton.y && touchYPosition < previousPageButton.y + previousPageButton.height)
+    if(IsInside(&moduleSwitchButton, touchXPosition, touchYPosition))
     {
-      int8_t step = 0;
-      if(touchXPosition > previousPageButton.x && touchXPosition < previousPageButton.x + previousPageButton.width)
-        step = -1;
-      else if(touchXPosition > nextPageButton.x && touchXPosition < nextPageButton.x + nextPageButton.width)
-        step = 1;
+      if(!isTapLatched)
+      {
+        isTapLatched = true;
+        virtEnabled = !virtEnabled;
+        LCD_UpdateSwitchButton(&moduleSwitchButton, virtEnabled);
+        FlashPersistence_WriteSettings(CurrentDisplay());
+      }
 
-      if(step != 0)
+      return;
+    }
+
+    for(uint32_t i = 0; i < CROSSFEED_PRESET_COUNT; i++)
+    {
+      if(IsInside(&presetButtons[i], touchXPosition, touchYPosition))
       {
         if(!isTapLatched)
         {
           isTapLatched = true;
-          LCD_ChangeEqPage(step);
+          crossfeedPreset = (uint8_t)i;
+          LCD_UpdateState();
+          FlashPersistence_WriteSettings(CurrentDisplay());
         }
 
-        return;
+        break;
       }
     }
 
-    if(touchYPosition > saveButton.y && touchYPosition < saveButton.y + saveButton.height)
-    {
-      if(touchXPosition > saveButton.x && touchXPosition < saveButton.x + saveButton.width)
-      {
-        if(!saveButton.isPressed)
-        {
-          saveButton.isPressed = true;
-          saveButton.isActive = true;
-          resetButton.isPressed = false;
-          resetButton.isActive = false;
-          undoButton.isPressed = false;
-          undoButton.isActive = false;
-          LCD_UpdateRectangleButton(&saveButton);
-          LCD_UpdateRectangleButton(&undoButton);
-          LCD_UpdateRectangleButton(&resetButton);
-          FlashPersistence_Write(CurrentDisplay());
-        }
+    return;
+  }
 
-        return;
+  if(circleButtons[EQ_CIRCLE_BUTTON].isActive)
+  {
+    if(IsInside(&moduleSwitchButton, touchXPosition, touchYPosition))
+    {
+      if(!isTapLatched)
+      {
+        isTapLatched = true;
+        eqEnabled = !eqEnabled;
+        LCD_UpdateSwitchButton(&moduleSwitchButton, eqEnabled);
+        FlashPersistence_WriteSettings(CurrentDisplay());
       }
+
+      return;
     }
-    else if(touchYPosition > undoButton.y && touchYPosition < undoButton.y + undoButton.height)
-    {
-      if(touchXPosition > undoButton.x && touchXPosition < saveButton.x + undoButton.width)
-      {
-        if(!undoButton.isPressed)
-        {
-          saveButton.isPressed = false;
-          saveButton.isActive = false;
-          undoButton.isPressed = true;
-          undoButton.isActive = true;
-          resetButton.isPressed = false;
-          resetButton.isActive = false;
-          LCD_UpdateRectangleButton(&saveButton);
-          LCD_UpdateRectangleButton(&undoButton);
-          LCD_UpdateRectangleButton(&resetButton);
-          FlashPersistence_Restore();
-          LCD_DisplayEqPage();
-        }
 
-        return;
+    int8_t pageStep = 0;
+    if(IsInside(&previousPageButton, touchXPosition, touchYPosition))
+      pageStep = -1;
+    else if(IsInside(&nextPageButton, touchXPosition, touchYPosition))
+      pageStep = 1;
+
+    if(pageStep != 0)
+    {
+      if(!isTapLatched)
+      {
+        isTapLatched = true;
+        LCD_ChangeEqPage(pageStep);
       }
+
+      return;
     }
-    else if(touchYPosition > resetButton.y && touchYPosition < resetButton.y + resetButton.height)
-    {
-      if(touchXPosition > resetButton.x && touchXPosition < resetButton.x + resetButton.width)
-      {
-        if(!resetButton.isPressed)
-        {
-          saveButton.isPressed = false;
-          saveButton.isActive = false;
-          undoButton.isPressed = false;
-          undoButton.isActive = false;
-          resetButton.isPressed = true;
-          resetButton.isActive = true;
-          LCD_UpdateRectangleButton(&saveButton);
-          LCD_UpdateRectangleButton(&undoButton);
-          LCD_UpdateRectangleButton(&resetButton);
-          for(uint8_t i = 0; i < EQ_BAND_COUNT; i++)
-            eqGains[i] = 0;
-          LCD_DisplayEqPage();
-        }
 
-        return;
+    if(IsInside(&saveButton, touchXPosition, touchYPosition))
+    {
+      if(!saveButton.isPressed)
+      {
+        saveButton.isPressed = true;
+        saveButton.isActive = true;
+        resetButton.isPressed = false;
+        resetButton.isActive = false;
+        undoButton.isPressed = false;
+        undoButton.isActive = false;
+        LCD_UpdateRectangleButton(&saveButton);
+        LCD_UpdateRectangleButton(&undoButton);
+        LCD_UpdateRectangleButton(&resetButton);
+        FlashPersistence_Write(CurrentDisplay());
       }
+
+      return;
+    }
+
+    if(IsInside(&undoButton, touchXPosition, touchYPosition))
+    {
+      if(!undoButton.isPressed)
+      {
+        saveButton.isPressed = false;
+        saveButton.isActive = false;
+        undoButton.isPressed = true;
+        undoButton.isActive = true;
+        resetButton.isPressed = false;
+        resetButton.isActive = false;
+        LCD_UpdateRectangleButton(&saveButton);
+        LCD_UpdateRectangleButton(&undoButton);
+        LCD_UpdateRectangleButton(&resetButton);
+        FlashPersistence_RestoreGains();
+        LCD_DisplayEqPage();
+      }
+
+      return;
+    }
+
+    if(IsInside(&resetButton, touchXPosition, touchYPosition))
+    {
+      if(!resetButton.isPressed)
+      {
+        saveButton.isPressed = false;
+        saveButton.isActive = false;
+        undoButton.isPressed = false;
+        undoButton.isActive = false;
+        resetButton.isPressed = true;
+        resetButton.isActive = true;
+        LCD_UpdateRectangleButton(&saveButton);
+        LCD_UpdateRectangleButton(&undoButton);
+        LCD_UpdateRectangleButton(&resetButton);
+        for(uint8_t i = 0; i < EQ_BAND_COUNT; i++)
+          eqGains[i] = 0;
+        LCD_DisplayEqPage();
+      }
+
+      return;
     }
 
     for(uint8_t i = 0; i < NUMBER_OF_SLIDER_BUTTONS; i++)

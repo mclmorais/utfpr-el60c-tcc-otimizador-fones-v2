@@ -16,9 +16,12 @@ typedef struct DisplaySettings {
   bool isDark;
 } DisplaySettings;
 
+// Every write also saves the switch of each Module as it is now; the switches are saved on touch.
 void FlashPersistence_Write(DisplaySettings display);
-void FlashPersistence_WriteDisplay(DisplaySettings display);
+void FlashPersistence_WriteSettings(DisplaySettings display);
+// Restore loads the saved gains and the switches and Preset of the Modules; RestoreGains only the gains (Undo).
 void FlashPersistence_Restore();
+void FlashPersistence_RestoreGains();
 DisplaySettings FlashPersistence_ReadDisplay();
 
 #endif // __FLASH_PERSISTENCE_H

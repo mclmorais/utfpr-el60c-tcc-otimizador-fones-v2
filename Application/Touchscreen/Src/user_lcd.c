@@ -1,5 +1,6 @@
 #include "user_lcd.h"
-#include "audio_user_dsp.h"
+#include "equalizer.h"
+#include "virtualizer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,14 +41,19 @@
 #define STEP_BUTTON_GAP    4
 #define GAIN_TEXT_GAP      6
 #define MOON_RADIUS        14
-#define MOON_BITE_OFFSET_X 7
-#define MOON_BITE_OFFSET_Y 5
-#define LOGO_INK_BLUE      24
-#define LOGO_YELLOW        0xFFCF00
-#define TRAIL_THICKNESS    4
-#define TRAIL_SEGMENT      8
-#define TRAIL_LENGTH       24
-#define TRAIL_SEGMENTS     (2 * (WVGA_RES_X + WVGA_RES_Y) / TRAIL_SEGMENT)
+// The Preset buttons form a grid two wide from x 250 to 730; the widest name, Jan Meier, needs 158 px of Font24.
+#define PRESET_BUTTON_COLUMNS 2
+#define PRESET_BUTTON_WIDTH   236
+#define PRESET_BUTTON_HEIGHT  50
+#define PRESET_BUTTON_GAP     8
+#define MOON_BITE_OFFSET_X    7
+#define MOON_BITE_OFFSET_Y    5
+#define LOGO_INK_BLUE         24
+#define LOGO_YELLOW           0xFFCF00
+#define TRAIL_THICKNESS       4
+#define TRAIL_SEGMENT         8
+#define TRAIL_LENGTH          24
+#define TRAIL_SEGMENTS        (2 * (WVGA_RES_X + WVGA_RES_Y) / TRAIL_SEGMENT)
 // Font24 leaves its top two rows blank, so the labels' ink starts just under the trail.
 #define EQ_LABEL_Y 2
 
@@ -73,12 +79,26 @@ static const LcdTheme themes[] = {
 };
 static const LcdTheme* theme = &themes[0];
 
-// !! THE NUMBER_OF_CIRCLE_BUTTONS DEFINE HAS TO BE UP TO DATE WITH THE NUMBER OF BUTTONS DEFINED HERE
-CircleButtonTypeDef circleButtons[] = {
-  //  x,   y,  r,   on,     off,  pressed, independent, active
-  {100, 440, 30, "EQ",  "", false, false, false, 0},
-  {150, 440, 30, "Vol", "", false, false, false, 0},
+// The page buttons of the EQ screen start at x = 145, right of these.
+CircleButtonTypeDef circleButtons[NUMBER_OF_CIRCLE_BUTTONS] = {
+  //                     x,   y,  r,   on,     off,  pressed, independent, active
+  [EQ_CIRCLE_BUTTON] = {42,  440, 30, "EQ",   "", false, false, false, 0},
+  [VIRT_CIRCLE_BUTTON] = {108, 440, 30, "VIRT", "", false, false, false, 0},
 };
+
+// The switch of the Module on screen; each Module screen has it in the same slot, above Salvar.
+RectangleButton moduleSwitchButton = {
+  .x = 20,
+  .y = 200 - 60,
+  .width = 180,
+  .height = 50,
+  .text = "",
+  .isPressed = false,
+  .isActive = false,
+};
+
+// One per Preset, laid out and labelled by LCD_DisplayVirtualizerPage; exactly the selected one is active.
+RectangleButton presetButtons[CROSSFEED_PRESET_COUNT];
 
 RectangleButton saveButton = {
   .x = 20,
@@ -264,34 +284,67 @@ static void Display_StartupScreen(void)
   // sets lcd foreground layer
   BSP_LCD_SelectLayer(0);
 
-  // clears the lcd
   BSP_LCD_SetBackColor(theme->background);
-  BSP_LCD_Clear(theme->background);
-
   LCD_UpdateState();
+}
+
+static void LCD_DisplayVirtualizerPage(void)
+{
+  LCD_UpdateSwitchButton(&moduleSwitchButton, virtEnabled);
+
+  const CrossfeedPreset* preset = &crossfeedPresets[crossfeedPreset];
+  char text[40];
+  BSP_LCD_SetFont(&Font24);
+  BSP_LCD_SetBackColor(theme->background);
+  BSP_LCD_SetTextColor(theme->foreground);
+  BSP_LCD_DisplayStringAt(250, 60, (uint8_t*)"Virtualizacao", LEFT_MODE);
+  BSP_LCD_DisplayStringAt(250, 150, (uint8_t*)"Tecnica: Crossfeed", LEFT_MODE);
+  BSP_LCD_DisplayStringAt(250, 190, (uint8_t*)"Preset:", LEFT_MODE);
+  for(uint32_t i = 0; i < CROSSFEED_PRESET_COUNT; i++)
+  {
+    presetButtons[i].x = 250 + (i % PRESET_BUTTON_COLUMNS) * (PRESET_BUTTON_WIDTH + PRESET_BUTTON_GAP);
+    presetButtons[i].y = 225 + (i / PRESET_BUTTON_COLUMNS) * (PRESET_BUTTON_HEIGHT + PRESET_BUTTON_GAP);
+    presetButtons[i].width = PRESET_BUTTON_WIDTH;
+    presetButtons[i].height = PRESET_BUTTON_HEIGHT;
+    presetButtons[i].text = (char*)crossfeedPresets[i].name;
+    presetButtons[i].isActive = i == crossfeedPreset;
+    LCD_UpdateRectangleButton(&presetButtons[i]);
+  }
+
+  BSP_LCD_SetBackColor(theme->background);
+  BSP_LCD_SetTextColor(theme->foreground);
+  int levelTenths = (int)(preset->levelDb * 10 + 0.5f);
+  sprintf(text, "%d Hz, %d.%d dB", (int)preset->cutoffHz, levelTenths / 10, levelTenths % 10);
+  BSP_LCD_DisplayStringAt(250, 345, (uint8_t*)text, LEFT_MODE);
+
+  BSP_LCD_SetFont(&Font16);
+  BSP_LCD_DisplayStringAt(250, 390, (uint8_t*)"Cada ouvido recebe uma copia abafada", LEFT_MODE);
+  BSP_LCD_DisplayStringAt(250, 410, (uint8_t*)"do canal oposto, como com alto-falantes.", LEFT_MODE);
+  BSP_LCD_SetFont(&Font24);
 }
 
 void LCD_UpdateState()
 {
+  BSP_LCD_Clear(theme->background);
 
-  if(circleButtons[0].isActive)
+  if(circleButtons[EQ_CIRCLE_BUTTON].isActive)
   {
     LCD_DisplayEqPage();
 
     // displays option buttons
+    LCD_UpdateSwitchButton(&moduleSwitchButton, eqEnabled);
     LCD_UpdateRectangleButton(&saveButton);
     LCD_UpdateRectangleButton(&resetButton);
     LCD_UpdateRectangleButton(&undoButton);
     LCD_UpdateRectangleButton(&previousPageButton);
     LCD_UpdateRectangleButton(&nextPageButton);
   }
+  else if(circleButtons[VIRT_CIRCLE_BUTTON].isActive)
+  {
+    LCD_DisplayVirtualizerPage();
+  }
   else
   {
-    // default state: displays background
-
-    // clears display
-    BSP_LCD_Clear(theme->background);
-
     // displays logo
     DrawLogo(20, 20);
 
@@ -305,11 +358,12 @@ void LCD_UpdateState()
     BSP_LCD_SetBackColor(LCD_COLOR_UTFPRYELLOW);
     BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
     BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION + 15, (uint8_t*)"V2.1", CENTER_MODE);
-    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION + 45, (uint8_t*)"EQ 31 Bandas", CENTER_MODE);
+    BSP_LCD_DisplayStringAt(
+        0, BSP_LCD_GetYSize() / 2 + Y_BAR_POSITION + 45, (uint8_t*)"EQ 31 Bandas e Virtualizacao", CENTER_MODE);
   }
 
   // circle buttons are always updated
-  for(uint8_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++)
+  for(uint32_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++)
   {
     // draws button border
     BSP_LCD_SetTextColor(theme->foreground);
@@ -321,7 +375,8 @@ void LCD_UpdateState()
 
     BSP_LCD_SetTextColor(theme->foreground);
     BSP_LCD_SetBackColor(theme->background);
-    BSP_LCD_DisplayStringAt(circleButtons[i].x - circleButtons[i].radius - 12,
+    uint16_t labelWidth = strlen(circleButtons[i].onText) * BSP_LCD_GetFont()->Width;
+    BSP_LCD_DisplayStringAt(circleButtons[i].x - labelWidth / 2,
                             circleButtons[i].y - circleButtons[i].radius - 24,
                             (uint8_t*)circleButtons[i].onText,
                             LEFT_MODE);
@@ -433,6 +488,13 @@ static void DrawLogo(uint16_t x, uint16_t y)
       BSP_LCD_DrawPixel(x + column, y + row, color);
     }
   }
+}
+
+void LCD_UpdateSwitchButton(RectangleButton* button, bool isOn)
+{
+  button->isActive = isOn;
+  button->text = isOn ? "Ligado" : "Desligado";
+  LCD_UpdateRectangleButton(button);
 }
 
 void LCD_UpdateRectangleButton(RectangleButton* button)
@@ -634,10 +696,13 @@ int16_t LCD_TranslateKnobPositionToGain(uint8_t knobIndex, uint16_t knobY)
 
 void LCD_UpdateButton(uint8_t buttonIndex, bool isPressed, bool shouldToggleOtherButtons)
 {
-  CircleButtonTypeDef* button = &circleButtons[buttonIndex];
-
-  button->isPressed = isPressed;
-  button->isActive = isPressed;
+  // Opening one screen closes the other.
+  for(uint32_t i = 0; i < NUMBER_OF_CIRCLE_BUTTONS; i++)
+  {
+    bool isThisButton = i == buttonIndex;
+    circleButtons[i].isPressed = isThisButton && isPressed;
+    circleButtons[i].isActive = isThisButton && isPressed;
+  }
   LCD_UpdateState();
 }
 
