@@ -130,8 +130,8 @@ static void VirtualSpeakers_Follow(const float* left, const float* right, uint32
 }
 
 static VirtualizerTechnique activeTechnique;
-static float otherLeft[AUDIO_USER_DSP_MAX_PACKET_FRAMES];
-static float otherRight[AUDIO_USER_DSP_MAX_PACKET_FRAMES];
+static float outgoingLeft[AUDIO_USER_DSP_MAX_PACKET_FRAMES];
+static float outgoingRight[AUDIO_USER_DSP_MAX_PACKET_FRAMES];
 
 static void Virtualizer_Init(void)
 {
@@ -175,15 +175,15 @@ static void Virtualizer_Process(float* left, float* right, uint32_t frameCount)
   }
 
   // The old Technique runs on a copy of the input and the new one in place, so both histories take the packet.
-  memcpy(otherLeft, left, frameCount * sizeof(float));
-  memcpy(otherRight, right, frameCount * sizeof(float));
-  Technique_Process(activeTechnique, otherLeft, otherRight, frameCount);
+  memcpy(outgoingLeft, left, frameCount * sizeof(float));
+  memcpy(outgoingRight, right, frameCount * sizeof(float));
+  Technique_Process(activeTechnique, outgoingLeft, outgoingRight, frameCount);
   Technique_Process(technique, left, right, frameCount);
   for(uint32_t frame = 0; frame < frameCount; frame++)
   {
     float weight = (float)(frame + 1) / (float)frameCount;
-    left[frame] = otherLeft[frame] + (left[frame] - otherLeft[frame]) * weight;
-    right[frame] = otherRight[frame] + (right[frame] - otherRight[frame]) * weight;
+    left[frame] = outgoingLeft[frame] + (left[frame] - outgoingLeft[frame]) * weight;
+    right[frame] = outgoingRight[frame] + (right[frame] - outgoingRight[frame]) * weight;
   }
   activeTechnique = technique;
 }

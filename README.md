@@ -301,7 +301,7 @@ tools/virtual_speakers.py caminho/D2_48K_24bit_256tap_FIR_SOFA.sofa
 
 `--taps` muda o tamanho do filtro e `--output`, o arquivo gerado.
 
-O teste de tamanho, `tools/virtual_speakers_size_test.py`, gera 64, 96, 128, 192 e 256 taps, compara cada um com o filtro inteiro, imprime o erro de cada tamanho e falha se o cabeçalho usar um tamanho diferente do menor aprovado. A tabela e o critério estão em [Tamanho do filtro](#tamanho-do-filtro).
+O teste de tamanho, `tools/virtual_speakers_size_test.py`, gera 64, 96, 128, 192 e 256 taps, compara cada um com o filtro inteiro (as respostas do SOFA sem corte), imprime o erro de cada tamanho e falha se o cabeçalho usar um tamanho diferente do menor aprovado. A tabela e o critério estão em [Tamanho do filtro](#tamanho-do-filtro).
 
 ```bash
 tools/virtual_speakers_size_test.py caminho/D2_48K_24bit_256tap_FIR_SOFA.sofa
@@ -466,22 +466,22 @@ O projeto deu prioridade ao pico: o ganho baixa até o pico mono ficar em +3 dB.
 
 #### Tamanho do filtro
 
-O gerador produz 64, 96, 128, 192 e 256 taps, e o teste de tamanho escolhe o menor que passa nos dois critérios, contra o filtro inteiro (256 taps, as respostas do SOFA sem corte), nos dois ouvidos:
+O gerador produz 64, 96, 128, 192 e 256 taps, e o teste de tamanho escolhe o menor que passa nos dois critérios, contra o filtro inteiro, nos dois ouvidos. O filtro inteiro são as respostas do SOFA sem corte e sem janela (256 taps), no mesmo formato soma e diferença, com o ganho normalizado pela mesma regra dos candidatos (volume mono e pico de +3 dB), para que uma diferença de ganho não conte como erro de magnitude:
 
 - a magnitude fica a ± 1 dB de 200 Hz a 16 kHz;
 - o atraso entre os ouvidos fica a até 1 amostra (21 µs), medido pelo pico da correlação cruzada.
 
-A magnitude é suavizada em 1/6 de oitava antes da comparação. Essa suavização é uma escolha deste projeto, que a #28 não pede, e ela é o critério de seleção da coluna "Suavizado". A coluna "Sem suavização" compara as respostas bin a bin e mostra que a escolha não decide o tamanho: ela muda o desvio de cada tamanho em no máximo 0,4 dB, e o menor tamanho aprovado é o mesmo.
+A magnitude é suavizada em 1/6 de oitava antes da comparação. Essa suavização é uma escolha deste projeto, que a #28 não pede, e ela é o critério de seleção da coluna "Suavizado". A coluna "Sem suavização" compara as respostas bin a bin e mostra que a escolha não decide o tamanho: ela muda o desvio de cada tamanho em no máximo 0,4 dB, e o menor tamanho aprovado é o mesmo. O critério do atraso entre os ouvidos deu 0 µs em todos os tamanhos, então ele não distingue um tamanho do outro e quem decide é a magnitude.
 
 | Taps | Desvio suavizado (1/6 de oitava) | Desvio sem suavização | Erro do atraso entre os ouvidos | Passa |
 |---|---|---|---|---|
-| 64 | 3,61 dB | 3,93 dB | 0 µs | não |
-| 96 | 3,67 dB | 3,70 dB | 0 µs | não |
-| 128 | 2,70 dB | 2,72 dB | 0 µs | não |
-| **192** | **0,82 dB** | **0,89 dB** | **0 µs** | **sim, nos dois** |
-| 256 | 0 dB | 0 dB | 0 µs | sim (é a referência) |
+| 64 | 3,61 dB | 3,85 dB | 0 µs | não |
+| 96 | 3,56 dB | 3,59 dB | 0 µs | não |
+| 128 | 2,73 dB | 2,74 dB | 0 µs | não |
+| **192** | **0,89 dB** | **0,96 dB** | **0 µs** | **sim, nos dois** |
+| 256 | 0,15 dB | 0,54 dB | 0 µs | sim |
 
-O maior desvio dos 128 taps, suavizado, é de -2,7 dB a 503 Hz no ouvido oposto. Os 192 taps ficam abaixo de 1 dB com ou sem suavização, então nenhuma tolerância se perdeu. O teto de ciclos também aceita os 192 taps. Os 256 taps passariam só por serem a referência, e pela proporção de taps custariam mais ciclos do que sobram (estimativa, não medida): a Cadeia já usa 148.200 dos 151.200 do teto com 192 (veja [Ciclos](#ciclos)).
+Os 192 taps ficam abaixo de 1 dB com ou sem suavização, com folga de 0,04 dB sem suavização, então nenhuma tolerância se perdeu. O teto de ciclos também aceita os 192 taps. Os 256 taps passariam com mais folga, mas pela proporção de taps custariam mais ciclos do que sobram (estimativa, não medida): a Cadeia já usa 148.200 dos 151.200 do teto com 192 (veja [Ciclos](#ciclos)). Pela #28 o teto de ciclos vale mais que a folga de magnitude, e 192 é o menor tamanho aprovado.
 
 #### Troca de Técnica
 

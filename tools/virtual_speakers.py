@@ -31,23 +31,17 @@ from dataclasses import dataclass
 
 import h5py
 import numpy as np
+from loudness import PINK_BAND_HZ, SAMPLE_RATE, k_weighting_power
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HEADER = os.path.join(ROOT, "Application", "DSP", "Inc", "virtual_speakers_filters.h")
 
-SAMPLE_RATE = 48000
 SPEAKER_AZIMUTH = 30
 DEFAULT_TAPS = 128
 # Raised-cosine fade at each end of the cut, as a fraction of the tap count.
 FADE_FRACTION = 1 / 8
 # The mono response may rise this far above 0 dB before the loudness gain is lowered.
 PEAK_LIMIT_DB = 3.0
-# K-weighting at 48 kHz, ITU-R BS.1770-4 table 1 (high shelf) and table 2 (highpass).
-K_WEIGHTING = [
-    ([1.53512485958697, -2.69169618940638, 1.19839281085285], [1.0, -1.69065929318241, 0.73248077421585]),
-    ([1.0, -2.0, 1.0], [1.0, -1.99004745483398, 0.99007225036621]),
-]
-LOUDNESS_BAND_HZ = (20, 20000)
 ANALYSIS_POINTS = 1 << 16
 
 
@@ -88,18 +82,10 @@ def read_hrirs(path):
     return Hrirs(ir[0].astype(np.float64), ir[1].astype(np.float64), sha256)
 
 
-def k_weighting_power(frequencies):
-    z = np.exp(-1j * 2 * np.pi * frequencies / SAMPLE_RATE)
-    power = np.ones(len(frequencies))
-    for b, a in K_WEIGHTING:
-        power *= np.abs(np.polyval(b[::-1], z) / np.polyval(a[::-1], z)) ** 2
-    return power
-
-
 def mono_loudness_db(sum_filter):
     """K-weighted level of a mono pink noise after the sum filter, relative to the noise itself."""
     frequencies = np.fft.rfftfreq(ANALYSIS_POINTS, 1 / SAMPLE_RATE)
-    band = (frequencies >= LOUDNESS_BAND_HZ[0]) & (frequencies <= LOUDNESS_BAND_HZ[1])
+    band = (frequencies >= PINK_BAND_HZ[0]) & (frequencies <= PINK_BAND_HZ[1])
     weight = k_weighting_power(frequencies[band]) / frequencies[band]
     response = np.abs(np.fft.rfft(sum_filter, ANALYSIS_POINTS)[band]) ** 2
     return 10 * np.log10(np.sum(weight * response) / np.sum(weight))
@@ -131,6 +117,12 @@ def design(hrirs, taps):
     sum_filter = cut(full_sum, start, taps)
     difference_filter = cut(full_difference, start, taps)
 
+    return normalize(sum_filter, difference_filter)
+
+
+def normalize(sum_filter, difference_filter):
+    """Scale the pair to mono loudness, or lower if the mono peak would pass the limit."""
+    taps = len(sum_filter)
     gain_db = -mono_loudness_db(sum_filter)
     peak = peak_db(sum_filter) + gain_db
     limited = peak > PEAK_LIMIT_DB

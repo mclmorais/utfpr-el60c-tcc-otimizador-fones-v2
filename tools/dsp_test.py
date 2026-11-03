@@ -27,6 +27,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 
 import numpy as np
+from loudness import k_weighted_level_db, pink_noise
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DSP_DIR = os.path.join(ROOT, "Application", "DSP")
@@ -608,34 +609,9 @@ def virtual_speakers_mirror_the_output_of_mirrored_input(dsp):
     return []
 
 
-# K-weighting at 48 kHz, ITU-R BS.1770-4 tables 1 and 2: a high shelf, then a highpass.
-K_WEIGHTING = [
-    ([1.53512485958697, -2.69169618940638, 1.19839281085285], [1.0, -1.69065929318241, 0.73248077421585]),
-    ([1.0, -2.0, 1.0], [1.0, -1.99004745483398, 0.99007225036621]),
-]
 # The mono peak may rise this far above 0 dB; beyond it the gain comes down and the loudness with it (#28).
 MONO_PEAK_LIMIT_DB = 3
 LOUDNESS_TOLERANCE_DB = 0.5
-
-
-def k_weighted_level_db(signal):
-    spectrum = np.fft.rfft(signal)
-    z = np.exp(-1j * 2 * np.pi * np.fft.rfftfreq(len(signal), 1 / SAMPLE_RATE))
-    power = np.abs(spectrum) ** 2
-    for b, a in K_WEIGHTING:
-        power *= np.abs(np.polyval(b[::-1], z) / np.polyval(a[::-1], z)) ** 2
-    return 10 * np.log10(np.sum(power))
-
-
-def pink_noise(frames, rms=2000, seed=5):
-    """Gaussian noise with equal power per octave from 20 Hz to 20 kHz."""
-    frequencies = np.fft.rfftfreq(frames, 1 / SAMPLE_RATE)
-    spectrum = np.fft.rfft(np.random.default_rng(seed).standard_normal(frames))
-    band = (frequencies >= 20) & (frequencies <= 20000)
-    spectrum[~band] = 0
-    spectrum[band] /= np.sqrt(frequencies[band])
-    noise = np.fft.irfft(spectrum, frames)
-    return np.round(noise * rms / np.sqrt(np.mean(noise**2)))
 
 
 def virtual_speakers_mono_response(dsp, points=1 << 16):
@@ -773,6 +749,37 @@ def switching_technique_with_virtualization_off_changes_nothing(dsp):
     differ = np.flatnonzero(np.any(output != frames, axis=1))
     if len(differ):
         raise Failure(f"{len(differ)} frames changed with the Virtualization off, first at frame {differ[0]}")
+    return []
+
+
+@case
+def virtualization_turned_on_after_an_off_stretch_matches_one_that_never_stopped(dsp):
+    """Off for a stretch (even with the Technique changed meanwhile), then on: after the fade the output equals a run that stayed on."""
+    errors = []
+    segment = SWITCH_SEGMENT
+    frames = stereo_tone(3 * segment)
+    for start, target in TECHNIQUE_PAIRS:
+        for changed_while_off in (False, True):
+            technique_while_off = target if changed_while_off else start
+            with virtualizer_on(dsp, technique=start):
+                dsp.process(frames[:segment])
+                dsp.virt_enabled.value = False
+                dsp.process(frames[segment : 2 * segment])
+                dsp.technique.value = technique_while_off
+                dsp.process(frames[segment : 2 * segment])
+                dsp.virt_enabled.value = True
+                output = dsp.process(frames[2 * segment :]).astype(int)
+            with virtualizer_on(dsp, technique=start):
+                dsp.process(frames[:segment])
+                dsp.process(frames[segment : 2 * segment])
+                dsp.technique.value = technique_while_off
+                dsp.process(frames[segment : 2 * segment])
+                reference = dsp.process(frames[2 * segment :]).astype(int)
+            worst = np.abs(output[FRAMES_PER_PACKET:] - reference[FRAMES_PER_PACKET:]).max()
+            if worst:
+                errors.append(f"{start}, Technique {'changed' if changed_while_off else 'kept'} while off: after the "
+                              f"fade the output differs from a run that stayed on by up to {worst} LSB")
+    raise_errors(errors)
     return []
 
 
