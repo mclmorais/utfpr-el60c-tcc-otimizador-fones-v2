@@ -278,7 +278,7 @@ Os casos dos Alto-falantes virtuais escolhem a Técnica por `virtTechnique` e n�
 
 ### Gerar os Filtros dos Alto-falantes Virtuais
 
-O script `tools/virtual_speakers.py` gera `Application/DSP/Inc/virtual_speakers_filters.h` a partir do arquivo SOFA da cabeça KEMAR (D2) do SADIE II, a 48 kHz. Ele pega o alto-falante a +30° de azimute e 0° de elevação, espelha para -30°, monta os filtros de soma e de diferença do embaralhador, corta e janela para 128 taps e ajusta o ganho para o ruído rosa mono manter o volume com ponderação K. As medidas do SADIE II já vêm com a compensação de campo difuso, e o script as usa como vêm. A compilação não roda o script; o cabeçalho fica no repositório. O mesmo arquivo SOFA sempre gera o mesmo cabeçalho.
+O script `tools/virtual_speakers.py` gera `Application/DSP/Inc/virtual_speakers_filters.h` a partir do arquivo SOFA da cabeça KEMAR (D2) do SADIE II, a 48 kHz. Ele pega o alto-falante a +30° de azimute e 0° de elevação, espelha para -30°, monta os filtros de soma e de diferença do embaralhador, corta e janela para 192 taps e ajusta o ganho para o ruído rosa mono manter o volume com ponderação K. As medidas do SADIE II já vêm com a compensação de campo difuso, e o script as usa como vêm. A compilação não roda o script; o cabeçalho fica no repositório. O mesmo arquivo SOFA sempre gera o mesmo cabeçalho.
 
 Baixe o arquivo fora do repositório. O cabeçalho de hoje veio deste, com SHA-256 `bb5980288fc5c990c821e02c5ddfa274759079b723973cd6ca47ac577243aa0c`:
 
@@ -295,6 +295,22 @@ tools/virtual_speakers.py caminho/D2_48K_24bit_256tap_FIR_SOFA.sofa
 ```
 
 `--taps` muda o tamanho do filtro e `--output`, o arquivo gerado.
+
+O tamanho vem de uma medida de erro. `tools/virtual_speakers_size_test.py` corta o filtro em 64, 96, 128, 192 e 256 taps, compara cada um com o filtro inteiro nos dois ouvidos e escolhe o menor que fica a ± 1 dB de 200 Hz a 16 kHz (magnitude suavizada em 1/6 de oitava) e com o atraso entre os ouvidos a até 1 amostra (21 µs). Ele falha se o cabeçalho usar outro tamanho.
+
+```bash
+tools/virtual_speakers_size_test.py caminho/D2_48K_24bit_256tap_FIR_SOFA.sofa
+```
+
+| Taps | Desvio de magnitude | Erro do atraso entre os ouvidos | Passa |
+|---|---|---|---|
+| 64 | 3,61 dB | 0 µs | não |
+| 96 | 3,67 dB | 0 µs | não |
+| 128 | 2,70 dB | 0 µs | não |
+| **192** | **0,82 dB** | **0 µs** | **sim** |
+| 256 | 0 dB | 0 µs | sim |
+
+Com 192 taps, a Cadeia com as 31 Bandas diferentes de zero e os Alto-falantes virtuais ativos custa 146.000 ciclos por pacote no pior caso (67,6% do orçamento, abaixo do teto de 70%), dos quais a Virtualização gasta 52.000.
 
 ### Formatar e Analisar o Código
 
