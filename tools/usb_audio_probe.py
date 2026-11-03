@@ -10,8 +10,10 @@ counter, against the 1 ms packet budget. Run it after updating the HAL or the
 USB code: a build that compiles cleanly can still leave the speaker silent.
 
 With --worst-case, before the tone it writes over ST-LINK the heaviest state
-the DSP can be in: every Band away from 0 dB, both Modules on and the Virtual
-speakers as the Technique.
+the DSP can be in: every Band away from 0 dB and both Modules on, with the
+Crossfeed as the Technique. Once the speaker plays it switches to the Virtual
+speakers, so the worst case holds a packet where both Techniques are computed
+and then the Virtual speakers alone.
 
 Needs the board on both USB cables (ST-LINK and USB OTG) and the Python
 packages sounddevice and numpy.
@@ -34,7 +36,7 @@ from lcd_capture import bundle_path, programmer_cli
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEVICE_NAME = "STM32 AUDIO"
-TONE_SECONDS = 10
+TONE_SECONDS = 16
 # The host takes a few seconds to enumerate the board after a reset, and to start the stream after play().
 ENUMERATION_SECONDS = 8
 STREAM_START_SECONDS = 6
@@ -54,6 +56,7 @@ BAND_COUNT = 31
 WORST_CASE_GAIN = 60
 # VIRTUALIZER_VIRTUAL_SPEAKERS in Application/DSP/Inc/virtualizer.h.
 VIRTUAL_SPEAKERS = 1
+CROSSFEED = 0
 
 
 def symbols(elf):
@@ -98,8 +101,12 @@ def apply_worst_case(addresses):
     for band in range(BAND_COUNT):
         write(addresses, "eqGains", 2 * band, 16, WORST_CASE_GAIN if band % 2 else -WORST_CASE_GAIN)
     write(addresses, "eqEnabled", 0, 8, 1)
-    write(addresses, "virtTechnique", 0, 8 * addresses["virtTechnique"][1], VIRTUAL_SPEAKERS)
+    write_technique(addresses, CROSSFEED)
     write(addresses, "virtEnabled", 0, 8, 1)
+
+
+def write_technique(addresses, technique):
+    write(addresses, "virtTechnique", 0, 8 * addresses["virtTechnique"][1], technique)
 
 
 def cycles_line(name, cycles):
@@ -142,6 +149,8 @@ def main():
     player.start()
     time.sleep(STREAM_START_SECONDS)
     playing = (read_state(addresses, SESSION), read_state(addresses, SPEAKER_NODE))
+    if args.worst_case:
+        write_technique(addresses, VIRTUAL_SPEAKERS)
     player.join()
     module_cycles = [read_word(addresses, MODULE_CYCLES, 4 * i) for i in range(len(MODULES))]
     chain_cycles = read_word(addresses, CHAIN_CYCLES)
