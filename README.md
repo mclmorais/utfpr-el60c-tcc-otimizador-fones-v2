@@ -13,7 +13,7 @@ O projeto visa reduzir gargalos no processo de entrega de áudio, desde o envio 
 - **Interface Touchscreen**: Permite ajuste visual e interativo dos parâmetros de equalização
 - **Persistência de Configurações**: Salva as configurações de equalização na memória flash
 - **31 Bandas de Equalização**: Equalizador gráfico de 1/3 de oitava, com as frequências centrais da ISO 266, de 20 Hz a 20 kHz
-- **Virtualização**: Crossfeed que tira o som de dentro da cabeça e o faz parecer vindo de alto-falantes à frente
+- **Virtualização**: tira o som de dentro da cabeça e o faz parecer vindo de alto-falantes à frente, por duas Técnicas à escolha: Crossfeed ou Alto-falantes virtuais
 - **Alta Qualidade**: Conversão e amplificação de alta qualidade para melhor fidelidade sonora
 
 ## Hardware
@@ -37,11 +37,12 @@ O projeto foi desenvolvido para a placa de desenvolvimento **STM32F769I-Discover
 │   │   │   ├── cycle_counter.h
 │   │   │   ├── dsp_module.h        # Contrato de um Módulo
 │   │   │   ├── equalizer.h
+│   │   │   ├── virtual_speakers_filters.h  # Coeficientes gerados dos Alto-falantes virtuais
 │   │   │   └── virtualizer.h
 │   │   └── Src/
 │   │       ├── audio_user_dsp.c    # Cadeia de módulos e medição de ciclos
 │   │       ├── equalizer.c         # Equalizador: filtros biquad de 31 Bandas
-│   │       └── virtualizer.c       # Virtualização: Crossfeed e seus Presets
+│   │       └── virtualizer.c       # Virtualização: Crossfeed e Alto-falantes virtuais
 │   ├── Persistence/            # Persistência de dados
 │   │   ├── Inc/
 │   │   │   └── flash_persistence.h
@@ -121,7 +122,7 @@ O sistema implementa:
 
 - **Filtros Biquad**: Filtros IIR (Infinite Impulse Response) de segunda ordem para equalização
 - **31 Bandas de Frequência**: Equalizador gráfico de 1/3 de oitava, de 20 Hz a 20 kHz
-- **Virtualização**: Crossfeed de primeira ordem no projeto do bs2b, antes do Equalizador (veja [Virtualização](#virtualização))
+- **Virtualização**: antes do Equalizador, com duas Técnicas exclusivas: o Crossfeed de primeira ordem no projeto do bs2b (veja [Virtualização](#virtualização)) e os Alto-falantes virtuais, dois FIR a partir de medidas de cabeça (veja [Alto-falantes virtuais](#alto-falantes-virtuais))
 - **Processamento em Tempo Real**: Processamento de amostras de áudio em tempo real via USB
 - **Formato PCM**: Suporte a áudio PCM estéreo (2 canais)
 
@@ -136,8 +137,8 @@ O sistema implementa:
 - **Armazenamento em Flash**: Configurações de equalização são salvas no setor 12 da flash, o primeiro setor do banco 2 (16 KB, endereço `0x08100000`). A flash fica em modo dual-bank. Assim, apagar esse setor não trava o código que roda do banco 1, e o áudio USB continua durante a gravação
 - **Restauração Automática**: Configurações são restauradas automaticamente na inicialização
 - **Marca de Formato**: A primeira palavra do setor guarda a marca `EQ31`. Os ajustes de 8 bandas salvos por versões antigas do firmware não têm essa marca e são descartados: todas as bandas começam em 0 dB
-- **Palavras do Setor**: depois da marca vêm os 31 ganhos, a rotação, o brilho, o modo escuro, a chave do Equalizador, a chave da Virtualização e o Preset do Crossfeed (o índice na tabela `crossfeedPresets`), uma palavra cada. Um setor gravado por um firmware mais antigo tem as palavras novas apagadas (`0xFFFFFFFF`), e cada uma delas mantém o comportamento antigo: tela sem rotação, brilho máximo, tema claro, Equalizador ligado, Virtualização desligada e Preset Padrão. Uma palavra de Preset fora da faixa também carrega o Padrão
-- **Salvamento no Toque**: a rotação, o brilho, o modo escuro e as chaves do Equalizador e da Virtualização e o Preset são salvos assim que tocados. Esse salvamento regrava os últimos ganhos salvos, nunca os ganhos na tela, então só o botão "Salvar" grava edições de ganho
+- **Palavras do Setor**: depois da marca vêm os 31 ganhos, a rotação, o brilho, o modo escuro, a chave do Equalizador, a chave da Virtualização, o Preset do Crossfeed (o índice na tabela `crossfeedPresets`) e a Técnica da Virtualização, uma palavra cada. O Preset fica na palavra 37 e a Técnica na 38 (`EQ_BAND_COUNT + 7`): 0 é o Crossfeed e 1, os Alto-falantes virtuais. Um setor gravado por um firmware mais antigo tem as palavras novas apagadas (`0xFFFFFFFF`), e cada uma delas mantém o comportamento antigo: tela sem rotação, brilho máximo, tema claro, Equalizador ligado, Virtualização desligada, Preset Padrão e Técnica Crossfeed, de modo que uma atualização de firmware soa como antes. Uma palavra de Preset ou de Técnica fora da faixa também carrega o Padrão e o Crossfeed
+- **Salvamento no Toque**: a rotação, o brilho, o modo escuro e as chaves do Equalizador e da Virtualização, o Preset e a Técnica são salvos assim que tocados. Esse salvamento regrava os últimos ganhos salvos, nunca os ganhos na tela, então só o botão "Salvar" grava edições de ganho
 
 ## Como Compilar e Executar
 
@@ -219,9 +220,15 @@ Sem argumento, ele usa o `build/Debug/horoscope.elf`. A linha `idle` mostra o es
 
 As linhas abaixo de `dsp worst case` mostram quanto do orçamento de 1 ms por pacote o DSP consome: uma linha por Módulo, na ordem da Cadeia, e uma linha para a Cadeia inteira. O firmware mede com o contador de ciclos DWT do Cortex-M7 cada Módulo e cada chamada de `AudioUserDsp_Process`, e guarda o maior valor desde a inicialização nas variáveis globais `moduleWorstCaseCycles` (uma posição por Módulo) e `chainWorstCaseCycles`. A Cadeia inclui também a conversão do pacote para `float` e a saturação de volta para 16 bits. A sonda lê essas variáveis pelo ST-LINK, pelo símbolo do ELF, e mostra os ciclos e a porcentagem do orçamento de 216.000 ciclos (1 ms a 216 MHz). Os nomes dos Módulos ficam na lista `MODULES` da sonda; se a Cadeia do firmware tiver outro tamanho, a sonda para e pede que a lista seja atualizada. O valor inclui as interrupções que preemptam o DSP e a recompilação de uma Banda por pacote depois de uma mudança de ganho. A medição só tem sentido depois de o tom tocar por alguns segundos.
 
+Com `--worst-case`, antes do tom a sonda escreve pelo ST-LINK o estado mais pesado do DSP: as 31 Bandas em ±6 dB, os dois Módulos ligados e a troca para os Alto-falantes virtuais com o tom já tocando, de modo que o pior caso inclui um pacote que calcula as duas Técnicas. A flash não muda; o próximo reset volta aos ajustes salvos.
+
+```bash
+tools/usb_audio_probe.py --worst-case
+```
+
 ### Testar o DSP no PC
 
-O script `tools/dsp_test.py` confere a resposta do Equalizador e da Virtualização sem a placa. Ele compila as fontes de `Application/DSP/` como biblioteca compartilhada com o compilador C do pacote `ziglang`, passa sinais de teste pela mesma função que o callback USB chama, pacote a pacote, e mede a saída com o numpy. Os ganhos, as chaves e o Preset são ajustados pelos mesmos `eqGains`, `eqEnabled`, `virtEnabled` e `crossfeedPreset` que a tela altera. O DSP lê o contador de ciclos DWT por `cycle_counter.h`, que o firmware implementa em `Application/User/Src/cycle_counter.c`. No PC, o substituto em `tools/dsp_pc/` sempre lê zero. Antes de medir, os testes reinicializam o DSP e descartam um segundo de pacotes.
+O script `tools/dsp_test.py` confere a resposta do Equalizador e da Virtualização sem a placa. Ele compila as fontes de `Application/DSP/` como biblioteca compartilhada com o compilador C do pacote `ziglang`, passa sinais de teste pela mesma função que o callback USB chama, pacote a pacote, e mede a saída com o numpy. Os ganhos, as chaves, o Preset e a Técnica são ajustados pelos mesmos `eqGains`, `eqEnabled`, `virtEnabled`, `crossfeedPreset` e `virtTechnique` que a tela altera. O DSP lê o contador de ciclos DWT por `cycle_counter.h`, que o firmware implementa em `Application/User/Src/cycle_counter.c`. No PC, o substituto em `tools/dsp_pc/` sempre lê zero. Antes de medir, os testes reinicializam o DSP e descartam um segundo de pacotes.
 
 Instale as dependências pelo pip. As versões são fixas para que todos meçam com o mesmo compilador:
 
@@ -261,6 +268,44 @@ Os casos da Virtualização leem a tabela `crossfeedPresets` do próprio DSP e r
 - Um seno mono em fundo de escala, na frequência em que o ganho mono é maior, sai a até 1 dB do nível de entrada e não se afasta da senoide mais do que 1% do fundo de escala.
 - Trocar de Preset entre dois pacotes, com ruído tocando, leva a saída à mesma de uma execução que começou no Preset novo, a até 2 LSB, um quarto de segundo depois.
 - Desligar e religar a Virtualização no pico de um tom de 250 Hz só na esquerda não produz um salto maior que o do próprio sinal. Depois de religada, a saída é igual à de uma execução que nunca desligou.
+
+Os casos dos Alto-falantes virtuais escolhem a Técnica por `virtTechnique` e não leem os coeficientes:
+
+- Um impulso só na esquerda chega à direita com o atraso da fórmula de Woodworth para uma cabeça de raio 8,75 cm a 30° (12,5 amostras), a ± 2 amostras, medido pela correlação cruzada.
+- De 5 a 10 kHz, o mesmo impulso sai pelo menos 6 dB mais alto na esquerda que na direita.
+- Ruído estéreo com os canais trocados sai com os canais trocados, bit a bit.
+- Ruído rosa mono sai com o mesmo volume com ponderação K (ITU-R BS.1770) a ± 0,5 dB, a menos que o ganho tenha baixado para o pico mono ficar em +3 dB; nesse caso o pico fica exatamente no limite.
+- O ganho mono fica em no máximo +3 dB, e um seno mono na frequência do pico, no maior nível que cabe sem saturar, não se afasta da senoide mais do que 1% do fundo de escala.
+- Trocar de Técnica no pico de um tom, nos dois sentidos, não produz um salto maior que o do próprio sinal. Depois do pacote da transição, a saída é igual à de uma Cadeia que já começou na Técnica nova. Com a Virtualização desligada, trocar de Técnica não muda a saída.
+- A palavra da flash carrega 0 como Crossfeed e 1 como Alto-falantes virtuais; uma palavra apagada ou fora da faixa carrega como Crossfeed.
+
+### Gerar os Filtros dos Alto-falantes Virtuais
+
+O script `tools/virtual_speakers.py` gera `Application/DSP/Inc/virtual_speakers_filters.h` a partir do arquivo SOFA da cabeça KEMAR (D2) do SADIE II, a 48 kHz. Os passos do script e o aviso de direitos das medidas estão em [Alto-falantes virtuais](#alto-falantes-virtuais). A compilação não roda o script nem precisa do arquivo SOFA; o cabeçalho fica no repositório. O mesmo arquivo SOFA sempre gera o mesmo cabeçalho.
+
+Baixe o arquivo fora do repositório. O cabeçalho de hoje veio deste, com SHA-256 `bb5980288fc5c990c821e02c5ddfa274759079b723973cd6ca47ac577243aa0c`:
+
+```bash
+curl -LO https://sofacoustics.org/data/database/sadie/D2_48K_24bit_256tap_FIR_SOFA.sofa
+```
+
+O gerador e o teste de tamanho usam o h5py e o numpy. As versões são fixas, como as do lint, para que todos gerem o mesmo cabeçalho:
+
+```bash
+pip install h5py==3.16.0 numpy==2.5.4
+```
+
+```bash
+tools/virtual_speakers.py caminho/D2_48K_24bit_256tap_FIR_SOFA.sofa
+```
+
+`--taps` muda o tamanho do filtro e `--output`, o arquivo gerado.
+
+O teste de tamanho, `tools/virtual_speakers_size_test.py`, gera 64, 96, 128, 192 e 256 taps, compara cada um com o filtro inteiro (as respostas do SOFA sem corte), imprime o erro de cada tamanho e falha se o cabeçalho usar um tamanho diferente do menor aprovado. A tabela e o critério estão em [Tamanho do filtro](#tamanho-do-filtro).
+
+```bash
+tools/virtual_speakers_size_test.py caminho/D2_48K_24bit_256tap_FIR_SOFA.sofa
+```
 
 ### Formatar e Analisar o Código
 
@@ -315,20 +360,19 @@ tools/lint.py tidy
 
 4. **Ligar a Virtualização**:
    - Toque no botão "VIRT", ao lado do "EQ", para abrir a tela da Virtualização. Abrir uma das telas fecha a outra, e tocar de novo no botão aberto volta à tela inicial
-   - A tela mostra a Técnica (Crossfeed) e quatro botões de Preset, em duas fileiras: Padrão, Chu Moy, Jan Meier e Forte. Exatamente um fica verde, e o corte e o nível dele aparecem abaixo. Tocar em outro troca o Preset no pacote seguinte, com a música tocando e sem transição gradual, e salva a escolha na flash. Uma placa nova começa no Padrão
-   - O botão no alto da coluna da esquerda liga e desliga a Virtualização. Ligada, o som sai de dentro da cabeça e passa a vir da frente; desligada, cada canal sai só no seu lado. A troca leva 1 ms e não faz clique. A escolha é salva na flash no toque, e uma placa nova começa com a Virtualização desligada
+   - A tela mostra, no alto, uma fileira com os botões "CROSSFEED" e "ALTO-FALANTES", a Técnica. Exatamente um fica verde. Tocar no outro troca a Técnica no pacote seguinte, com a música tocando e sem clique, e salva a escolha na flash. Uma placa nova começa no Crossfeed
+   - Com o Crossfeed, a tela mostra também quatro botões de Preset, em duas fileiras: Padrão, Chu Moy, Jan Meier e Forte. Exatamente um fica verde, e o corte e o nível dele aparecem abaixo. Tocar em outro troca o Preset no pacote seguinte, com a música tocando e sem transição gradual, e salva a escolha na flash. Uma placa nova começa no Padrão
+   - Com os Alto-falantes virtuais, os Presets somem, porque não teriam efeito, e no lugar fica a linha "2 alto-falantes a 30 graus". O que a Técnica faz está em [Alto-falantes virtuais](#alto-falantes-virtuais)
+   - O botão no alto da coluna da esquerda liga e desliga a Virtualização, com qualquer Técnica. Ligada, o som sai de dentro da cabeça e passa a vir da frente; desligada, cada canal sai só no seu lado. A troca leva 1 ms e não faz clique. A escolha é salva na flash no toque, e uma placa nova começa com a Virtualização desligada
 
-   | | Ligada | Desligada |
-   |---|---|---|
-   | Tema claro | ![Virtualização ligada, tema claro, tela girada em 180°](docs/capturas/virt-claro-ligado-180.png) | ![Virtualização desligada, tema claro, tela girada em 180°](docs/capturas/virt-claro-desligado-180.png) |
-   | Tema escuro | ![Virtualização ligada, tema escuro, tela girada em 180°](docs/capturas/virt-escuro-ligado-180.png) | ![Virtualização desligada, tema escuro, tela girada em 180°](docs/capturas/virt-escuro-desligado-180.png) |
-
-   Os quatro Presets, nos dois temas e nas duas orientações da tela (o botão "180" verde indica a tela girada):
+   As duas Técnicas, nos dois temas e nas duas orientações da tela (o botão "180" verde indica a tela girada). A Virtualização estava desligada nas capturas, e a tela é a mesma ligada:
 
    | | Tela normal | Tela girada em 180° |
    |---|---|---|
-   | Tema claro | ![Preset Padrão, tema claro](docs/capturas/virt-preset-padrao-claro.png) | ![Preset Chu Moy, tema claro, tela girada em 180°](docs/capturas/virt-preset-chu-moy-claro-180.png) |
-   | Tema escuro | ![Preset Jan Meier, tema escuro](docs/capturas/virt-preset-jan-meier-escuro.png) | ![Preset Forte, tema escuro, tela girada em 180°](docs/capturas/virt-preset-forte-escuro-180.png) |
+   | Crossfeed, tema claro | ![Crossfeed, tema claro](docs/capturas/virt-tecnica-crossfeed-claro.png) | ![Crossfeed, tema claro, tela girada em 180°](docs/capturas/virt-tecnica-crossfeed-claro-180.png) |
+   | Crossfeed, tema escuro | ![Crossfeed, tema escuro](docs/capturas/virt-tecnica-crossfeed-escuro.png) | ![Crossfeed, tema escuro, tela girada em 180°](docs/capturas/virt-tecnica-crossfeed-escuro-180.png) |
+   | Alto-falantes virtuais, tema claro | ![Alto-falantes virtuais, tema claro](docs/capturas/virt-tecnica-alto-falantes-claro.png) | ![Alto-falantes virtuais, tema claro, tela girada em 180°](docs/capturas/virt-tecnica-alto-falantes-claro-180.png) |
+   | Alto-falantes virtuais, tema escuro | ![Alto-falantes virtuais, tema escuro](docs/capturas/virt-tecnica-alto-falantes-escuro.png) | ![Alto-falantes virtuais, tema escuro, tela girada em 180°](docs/capturas/virt-tecnica-alto-falantes-escuro-180.png) |
 
    | | Tela inicial |
    | --- | --- |
@@ -379,9 +423,81 @@ esquerda = esquerda + G · passa_baixas(direita - esquerda)
 direita  = direita  - G · passa_baixas(direita - esquerda)
 ```
 
-As duas saídas usam um único passa-baixas, aplicado à diferença entre os canais. Um sinal mono não tem diferença e sai igual, bit a bit, e um sinal com os canais trocados sai com os canais trocados, também bit a bit. A sonda mede 3.233 ciclos por pacote para a Virtualização, 1,5% do orçamento. A conta inclui a cópia do sinal sem processamento que a chave da Cadeia usa.
+As duas saídas usam um único passa-baixas, aplicado à diferença entre os canais. Um sinal mono não tem diferença e sai igual, bit a bit, e um sinal com os canais trocados sai com os canais trocados, também bit a bit. Antes dos Alto-falantes virtuais, a sonda media 3.233 ciclos por pacote para a Virtualização, 1,5% do orçamento, com a cópia do sinal sem processamento que a chave da Cadeia usa. O custo de hoje, com as duas Técnicas, está em [Ciclos](#ciclos).
 
-A Técnica fica num campo próprio (`virtTechnique`), para que os Alto-falantes virtuais entrem depois como outra Técnica. O Preset é um índice na tabela `crossfeedPresets`. Trocar o índice com a música tocando troca os coeficientes no pacote seguinte, sem transição gradual e sem apagar o estado do filtro.
+A Técnica fica num campo próprio (`virtTechnique`), exclusivo: só uma está ativa por vez. O Preset é um índice na tabela `crossfeedPresets`. Trocar o índice com a música tocando troca os coeficientes no pacote seguinte, sem transição gradual e sem apagar o estado do filtro. A outra Técnica, os Alto-falantes virtuais, está na próxima seção.
+
+### Alto-falantes virtuais
+
+A segunda Técnica da Virtualização põe dois alto-falantes a 30° de cada lado, à frente do ouvinte, num ambiente sem eco, e calcula o que cada ouvido escutaria deles. As respostas vêm de medidas da cabeça KEMAR, e cada ouvido recebe os dois alto-falantes, com o atraso da distância e a sombra da cabeça. Não há sala, rastreamento da cabeça nem outros ângulos.
+
+#### Diferença para o Crossfeed
+
+O Crossfeed só mistura os canais: um sinal mono não tem diferença entre eles e sai igual, então um som no centro continua dentro da cabeça. Os Alto-falantes virtuais filtram o sinal como a cabeça filtraria um som vindo da frente, e por isso um som no centro sai de fora da cabeça. O preço é o timbre: um sinal mono sai com o mesmo volume, mas não com o mesmo timbre (veja o [ADR 0002](docs/adr/0002-alto-falantes-virtuais-mudam-o-timbre-mono.md)). A regra do volume vem do [ADR 0001](docs/adr/0001-cadeia-fixa-de-modulos.md), mas aqui o ganho precisou baixar um pouco além dela, como mostra [Volume e pico](#volume-e-pico).
+
+#### Origem das medidas
+
+As medidas são do banco SADIE II, da Universidade de York, cabeça KEMAR (sujeito D2), arquivo SOFA a 48 kHz. O banco é citado pelo artigo, como pede a universidade:
+
+- C. Armstrong, L. Thresh, D. Murphy e G. Kearney, "A Perceptual Evaluation of Individual and Non-Individual HRTFs: A Case Study of the SADIE II Database", Applied Sciences, vol. 8, n. 11, 2018, art. 2029, [DOI 10.3390/app8112029](https://doi.org/10.3390/app8112029).
+
+Aviso de direitos: SADIE II database, KEMAR (D2), University of York. Copyright 2018, University of York, licenciado sob a [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0). Este projeto modificou as medidas: pegou o par de alto-falante a +30° de azimute e 0° de elevação, espelhou para -30°, somou e subtraiu os ouvidos, cortou, janelou e mudou o ganho. O cabeçalho gerado repete o aviso e a lista de modificações, e guarda o SHA-256 do arquivo de origem.
+
+**Compensação de campo difuso.** O projeto usa a compensação publicada, não uma calculada pela ferramenta. O atributo `History` do arquivo SOFA diz que as respostas já a trazem, e a conferência confirmou: a média de potência de todas as direções do conjunto fica plana a cerca de 1 dB de 200 Hz a 16 kHz. O gerador usa as respostas como vêm.
+
+#### Como o filtro é montado
+
+O gerador supõe a cabeça simétrica e usa as medidas de um lado, espelhadas para o outro. Um embaralhador (shuffler) separa a soma e a diferença dos canais, e cada uma passa por um FIR. São dois FIR por pacote, metade do custo de quatro:
+
+```
+S = (esquerda + direita) / 2      passa por (hI + hC)
+D = (esquerda - direita) / 2      passa por (hI - hC)
+esquerda = S + D
+direita  = S - D
+```
+
+Aqui hI é a resposta do alto-falante para o ouvido do mesmo lado, e hC, para o ouvido oposto. O gerador corta as duas respostas no trecho de N taps onde fica a maior energia, janela um oitavo do filtro em cada ponta e aplica o ganho. O FIR é escrito à mão em `virtualizer.c`: forma direta, linha de atraso duplicada, desenrolado 4 vezes, com 4 acumuladores.
+
+#### Volume e pico
+
+O ADR 0001 pede o mesmo volume mono com o Módulo ligado ou desligado, e a #28 limita o pico mono a +3 dB. Com estas medidas os dois critérios não cabem juntos. O ganho que mantém o volume com ponderação K (ITU-R BS.1770) deixa o pico mono em +4,3 dB, a 12 kHz, na ressonância da orelha a 30°. O filtro inteiro de 256 taps dá o mesmo +4,3 dB, então não é efeito do corte.
+
+O projeto deu prioridade ao pico: o ganho baixa até o pico mono ficar em +3 dB. Com 192 taps o ganho é de -2,03 dB, e o ruído rosa mono sai **1,10 dB mais baixo** com ponderação K, fora dos ± 0,5 dB que valeriam sem o limite. O contrário, volume acima do pico, é trocar a constante `PEAK_LIMIT_DB` em `tools/virtual_speakers.py` e gerar de novo. Um seno mono em fundo de escala numa frequência com ganho acima de 0 dB satura a Cadeia de 16 bits de qualquer jeito; o teste do PC toca o seno no maior nível que cabe sem saturar.
+
+#### Tamanho do filtro
+
+O gerador produz 64, 96, 128, 192 e 256 taps, e o teste de tamanho escolhe o menor que passa nos dois critérios, contra o filtro inteiro, nos dois ouvidos. O filtro inteiro são as respostas do SOFA sem corte e sem janela (256 taps), no mesmo formato soma e diferença, com o ganho normalizado pela mesma regra dos candidatos (volume mono e pico de +3 dB), para que uma diferença de ganho não conte como erro de magnitude:
+
+- a magnitude fica a ± 1 dB de 200 Hz a 16 kHz;
+- o atraso entre os ouvidos fica a até 1 amostra (21 µs), medido pelo pico da correlação cruzada.
+
+A magnitude é suavizada em 1/6 de oitava antes da comparação. Essa suavização é uma escolha deste projeto, que a #28 não pede, e ela é o critério de seleção da coluna "Suavizado". A coluna "Sem suavização" compara as respostas bin a bin e mostra que a escolha não decide o tamanho: ela muda o desvio de cada tamanho em no máximo 0,4 dB, e o menor tamanho aprovado é o mesmo. O critério do atraso entre os ouvidos deu 0 µs em todos os tamanhos, então ele não distingue um tamanho do outro e quem decide é a magnitude.
+
+| Taps | Desvio suavizado (1/6 de oitava) | Desvio sem suavização | Erro do atraso entre os ouvidos | Passa |
+|---|---|---|---|---|
+| 64 | 3,61 dB | 3,85 dB | 0 µs | não |
+| 96 | 3,56 dB | 3,59 dB | 0 µs | não |
+| 128 | 2,73 dB | 2,74 dB | 0 µs | não |
+| **192** | **0,89 dB** | **0,96 dB** | **0 µs** | **sim, nos dois** |
+| 256 | 0,15 dB | 0,54 dB | 0 µs | sim |
+
+Os 192 taps ficam abaixo de 1 dB com ou sem suavização, com folga de 0,04 dB sem suavização, então nenhuma tolerância se perdeu. O teto de ciclos também aceita os 192 taps. Os 256 taps passariam com mais folga, mas pela proporção de taps custariam mais ciclos do que sobram (estimativa, não medida): a Cadeia já usa 148.200 dos 151.200 do teto com 192 (veja [Ciclos](#ciclos)). Pela #28 o teto de ciclos vale mais que a folga de magnitude, e 192 é o menor tamanho aprovado.
+
+#### Troca de Técnica
+
+A cada pacote a Virtualização alimenta o histórico das duas Técnicas, o estado do Crossfeed e as linhas de atraso dos dois FIR, mas calcula só a ativa. No pacote em que a Técnica muda, ela calcula as duas e desliza linearmente da antiga para a nova ao longo do pacote (1 ms), como a chave da Cadeia, sem clique. O pior caso de ciclos inclui esse pacote.
+
+#### Ciclos
+
+Medidos na placa por `tools/usb_audio_probe.py --worst-case`: as 31 Bandas em ±6 dB, o Equalizador e a Virtualização ligados, e a troca do Crossfeed para os Alto-falantes virtuais com o tom já tocando, de modo que o pacote que calcula as duas Técnicas entra no pior caso. O valor inclui as interrupções. A faixa reúne duas execuções do mesmo firmware de 192 taps, a da troca de Técnica (#37) e a da tela e da flash (#38):
+
+| | Ciclos por pacote | Orçamento de 216.000 |
+|---|---|---|
+| Virtualização | 54.167 a 54.204 | 25,1% |
+| Equalizador | 93.384 a 93.496 | 43,2% |
+| Cadeia | **148.235 a 148.476** | **68,6% a 68,7%** (teto de 151.200, 70%) |
+
+Sobram de 2.700 a 3.000 ciclos até o teto. Com 128 taps, antes de passar para 192, a Cadeia dava 132.915 ciclos (61,5%).
 
 ### Arquitetura de Processamento
 
@@ -393,7 +509,7 @@ Cada Módulo tem uma chave de liga e desliga, e quem a aplica é a Cadeia. Ela r
 flowchart LR
     A[USB Audio Input] --> B[Separa em blocos float<br/>esquerdo e direito]
     subgraph Cadeia[Cadeia de módulos]
-        V[Virtualização<br/>Crossfeed] --> C[Equalizador<br/>31 Bandas biquad]
+        V[Virtualização<br/>Crossfeed ou<br/>Alto-falantes virtuais] --> C[Equalizador<br/>31 Bandas biquad]
     end
     B --> V
     C --> D[Satura para 16 bits<br/>e intercala]
@@ -427,6 +543,7 @@ As versões e os repositórios de origem estão em [Código da ST](#código-da-s
 - [Audio EQ Cookbook](https://webaudio.github.io/Audio-EQ-Cookbook/audio-eq-cookbook.html)
 - B. B. Bauer, "Stereophonic Earphones and Binaural Loudspeakers", Journal of the Audio Engineering Society, vol. 9, n. 2, 1961
 - [bs2b, Bauer stereophonic-to-binaural DSP](https://bs2b.sourceforge.net/), de Boris Mikhaylov
+- C. Armstrong, L. Thresh, D. Murphy e G. Kearney, "A Perceptual Evaluation of Individual and Non-Individual HRTFs: A Case Study of the SADIE II Database", Applied Sciences, vol. 8, n. 11, 2018, [DOI 10.3390/app8112029](https://doi.org/10.3390/app8112029). O banco SADIE II é da Universidade de York, sob a Apache License 2.0 (veja [Origem das medidas](#origem-das-medidas))
 
 ## Troubleshooting
 

@@ -1,6 +1,8 @@
 #include "virtualizer.h"
 #include "audio_user_dsp.h"
+#include "virtual_speakers_filters.h"
 #include <math.h>
+#include <string.h>
 
 const CrossfeedPreset crossfeedPresets[CROSSFEED_PRESET_COUNT] = {
   {"Padrao",    700,  4.5f},
@@ -12,6 +14,11 @@ const CrossfeedPreset crossfeedPresets[CROSSFEED_PRESET_COUNT] = {
 volatile bool virtEnabled = false;
 volatile VirtualizerTechnique virtTechnique = VIRTUALIZER_CROSSFEED;
 volatile uint8_t crossfeedPreset = 0;
+
+VirtualizerTechnique Virtualizer_TechniqueFromSavedWord(uint32_t word)
+{
+  return word < VIRTUALIZER_TECHNIQUE_COUNT ? (VirtualizerTechnique)word : VIRTUALIZER_CROSSFEED;
+}
 
 // bs2b feeds each ear the opposite channel through a first-order lowpass of gain G
 // and its own channel through a first-order high shelf. Its shelf, given the
@@ -49,20 +56,136 @@ static void Crossfeed_Process(float* left, float* right, uint32_t frameCount)
   }
 }
 
-static void Virtualizer_Init(void)
+// Follows the signal without producing the output, so a switch to the Crossfeed finds its state ready.
+static void Crossfeed_Follow(const float* left, const float* right, uint32_t frameCount)
 {
-  Crossfeed_Build(crossfeedPreset);
-  crossfeed = 0;
+  if(crossfeedPreset != builtPreset)
+    Crossfeed_Build(crossfeedPreset);
+
+  for(uint32_t frame = 0; frame < frameCount; frame++)
+    crossfeed = feedGain * (right[frame] - left[frame]) + pole * crossfeed;
 }
 
+// Direct-form FIR whose history is stored twice, back to back, so the taps of
+// any sample are one run of memory and the loop never wraps.
+typedef struct Fir {
+  float history[2 * VIRTUAL_SPEAKERS_TAPS];
+  uint32_t newest;
+} Fir;
+
+_Static_assert(VIRTUAL_SPEAKERS_TAPS % 4 == 0, "the FIR loop is unrolled 4 times");
+
+// The shuffler (docs/adr/0002-alto-falantes-virtuais-mudam-o-timbre-mono.md):
+// with a symmetric head, the two speakers need only a sum and a difference filter.
+static Fir sumFir;
+static Fir differenceFir;
+
+static void Fir_Push(Fir* fir, float input)
+{
+  fir->newest = (fir->newest == 0 ? VIRTUAL_SPEAKERS_TAPS : fir->newest) - 1;
+  fir->history[fir->newest] = input;
+  fir->history[fir->newest + VIRTUAL_SPEAKERS_TAPS] = input;
+}
+
+static float Fir_Step(Fir* fir, const float* coefficients, float input)
+{
+  Fir_Push(fir, input);
+  const float* past = &fir->history[fir->newest];
+  // Four sums keep four multiply-adds in flight instead of waiting on one.
+  float sum0 = 0;
+  float sum1 = 0;
+  float sum2 = 0;
+  float sum3 = 0;
+  for(uint32_t tap = 0; tap < VIRTUAL_SPEAKERS_TAPS; tap += 4)
+  {
+    sum0 += coefficients[tap] * past[tap];
+    sum1 += coefficients[tap + 1] * past[tap + 1];
+    sum2 += coefficients[tap + 2] * past[tap + 2];
+    sum3 += coefficients[tap + 3] * past[tap + 3];
+  }
+  return (sum0 + sum1) + (sum2 + sum3);
+}
+
+// left = sum + difference and right = sum - difference, so swapping the inputs
+// only negates the difference and the output is mirrored exactly.
+static void VirtualSpeakers_Process(float* left, float* right, uint32_t frameCount)
+{
+  for(uint32_t frame = 0; frame < frameCount; frame++)
+  {
+    float sum = Fir_Step(&sumFir, virtualSpeakersSum, 0.5f * (left[frame] + right[frame]));
+    float difference = Fir_Step(&differenceFir, virtualSpeakersDifference, 0.5f * (left[frame] - right[frame]));
+    left[frame] = sum + difference;
+    right[frame] = sum - difference;
+  }
+}
+
+// Follows the signal without computing the filters, so a switch to the Virtual Speakers finds their history ready.
+static void VirtualSpeakers_Follow(const float* left, const float* right, uint32_t frameCount)
+{
+  for(uint32_t frame = 0; frame < frameCount; frame++)
+  {
+    Fir_Push(&sumFir, 0.5f * (left[frame] + right[frame]));
+    Fir_Push(&differenceFir, 0.5f * (left[frame] - right[frame]));
+  }
+}
+
+static VirtualizerTechnique activeTechnique;
+static float outgoingLeft[AUDIO_USER_DSP_MAX_PACKET_FRAMES];
+static float outgoingRight[AUDIO_USER_DSP_MAX_PACKET_FRAMES];
+
+static void Virtualizer_Init(void)
+{
+  activeTechnique = virtTechnique;
+  Crossfeed_Build(crossfeedPreset);
+  crossfeed = 0;
+  memset(&sumFir, 0, sizeof(sumFir));
+  memset(&differenceFir, 0, sizeof(differenceFir));
+}
+
+static void Technique_Process(VirtualizerTechnique technique, float* left, float* right, uint32_t frameCount)
+{
+  if(technique == VIRTUALIZER_CROSSFEED)
+    Crossfeed_Process(left, right, frameCount);
+  else
+    VirtualSpeakers_Process(left, right, frameCount);
+}
+
+static void Technique_Follow(VirtualizerTechnique technique, const float* left, const float* right, uint32_t frameCount)
+{
+  if(technique == VIRTUALIZER_CROSSFEED)
+    Crossfeed_Follow(left, right, frameCount);
+  else
+    VirtualSpeakers_Follow(left, right, frameCount);
+}
+
+// Every packet feeds both Techniques, but only the active one is computed. In the
+// packet where the Technique changes both are, and the output slides linearly from
+// the old to the new over the packet, like the Chain's switch.
 static void Virtualizer_Process(float* left, float* right, uint32_t frameCount)
 {
-  switch(virtTechnique)
+  VirtualizerTechnique technique = virtTechnique;
+  VirtualizerTechnique other =
+      technique == VIRTUALIZER_CROSSFEED ? VIRTUALIZER_VIRTUAL_SPEAKERS : VIRTUALIZER_CROSSFEED;
+
+  if(technique == activeTechnique)
   {
-    case VIRTUALIZER_CROSSFEED:
-      Crossfeed_Process(left, right, frameCount);
-      break;
+    Technique_Follow(other, left, right, frameCount);
+    Technique_Process(technique, left, right, frameCount);
+    return;
   }
+
+  // The old Technique runs on a copy of the input and the new one in place, so both histories take the packet.
+  memcpy(outgoingLeft, left, frameCount * sizeof(float));
+  memcpy(outgoingRight, right, frameCount * sizeof(float));
+  Technique_Process(activeTechnique, outgoingLeft, outgoingRight, frameCount);
+  Technique_Process(technique, left, right, frameCount);
+  for(uint32_t frame = 0; frame < frameCount; frame++)
+  {
+    float weight = (float)(frame + 1) / (float)frameCount;
+    left[frame] = outgoingLeft[frame] + (left[frame] - outgoingLeft[frame]) * weight;
+    right[frame] = outgoingRight[frame] + (right[frame] - outgoingRight[frame]) * weight;
+  }
+  activeTechnique = technique;
 }
 
 const DspModule virtualizerModule = {Virtualizer_Init, Virtualizer_Process, &virtEnabled};

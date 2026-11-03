@@ -27,6 +27,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 
 import numpy as np
+from loudness import k_weighted_level_db, pink_noise
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DSP_DIR = os.path.join(ROOT, "Application", "DSP")
@@ -114,6 +115,7 @@ class Dsp:
         self.band_centres = [band.frequency for band in self.state("eqBands", EqBand * BAND_COUNT)]
         self.virt_enabled = self.state("virtEnabled", ctypes.c_bool)
         self.preset = self.state("crossfeedPreset", ctypes.c_uint8)
+        self.technique = self.state("virtTechnique", ctypes.c_int)
         count = preset_count()
         table = self.state("crossfeedPresets", CrossfeedPreset * count)
         self.presets = [Preset(i, p.name.decode(), p.cutoff_hz, p.level_db) for i, p in enumerate(table)]
@@ -328,17 +330,24 @@ def boosted_band_follows_cookbook(dsp):
     return [Plot("Cada banda sozinha em +6 dB", curves)]
 
 
+# The VirtualizerTechnique values, which the flash will store.
+CROSSFEED = 0
+VIRTUAL_SPEAKERS = 1
+
+
 @contextmanager
-def virtualizer_on(dsp, preset):
-    """The Virtualization on with this Preset and the Equalizer flat, settled; switched back off after."""
+def virtualizer_on(dsp, preset=None, technique=CROSSFEED):
+    """The Virtualization on with this Technique (and Preset) and the Equalizer flat, settled; switched back off after."""
     dsp.set_gains_db([0] * BAND_COUNT)
-    dsp.preset.value = preset.index
+    dsp.preset.value = preset.index if preset else 0
+    dsp.technique.value = technique
     dsp.virt_enabled.value = True
     try:
         dsp.settle()
         yield
     finally:
         dsp.virt_enabled.value = False
+        dsp.technique.value = CROSSFEED
         dsp.preset.value = 0
 
 
@@ -538,6 +547,242 @@ def switching_virtualizer_never_jumps_more_than_the_signal(dsp):
     return []
 
 
+HEAD_RADIUS_M = 0.0875
+SPEED_OF_SOUND_M_S = 343
+SPEAKER_ANGLE_RAD = np.radians(30)
+# Long enough for any head response the DSP can afford; the rest of an impulse response is silence.
+IMPULSE_FRAMES = 1024
+
+
+def virtual_speakers_left_impulse(dsp, amplitude=32767):
+    """Both output channels, as floats, for an impulse on the left input only."""
+    frames = np.zeros((SAMPLE_RATE, 2), dtype=np.int16)
+    frames[0, 0] = amplitude
+    with virtualizer_on(dsp, technique=VIRTUAL_SPEAKERS):
+        return dsp.process(frames).astype(float)
+
+
+@case
+def virtual_speakers_delay_the_far_ear_as_woodworth(dsp):
+    """A left-only impulse reaches the right ear later by Woodworth's r / c (theta + sin theta), within 2 samples."""
+    output = virtual_speakers_left_impulse(dsp)[:IMPULSE_FRAMES]
+    left, right = output[:, 0], output[:, 1]
+    if not np.any(right):
+        raise Failure("nothing of the left impulse reaches the right output")
+    expected = HEAD_RADIUS_M / SPEED_OF_SOUND_M_S * (SPEAKER_ANGLE_RAD + np.sin(SPEAKER_ANGLE_RAD)) * SAMPLE_RATE
+    correlation = np.correlate(right, left, "full")
+    delay = np.argmax(correlation) - (len(left) - 1)
+    if abs(delay - expected) > 2:
+        raise Failure(f"the right ear lags the left by {delay} samples, Woodworth gives {expected:.1f}")
+    return []
+
+
+@case
+def virtual_speakers_keep_the_near_ear_louder_in_the_treble(dsp):
+    """From 5 to 10 kHz the head shadows the far ear: a left-only impulse is at least 6 dB louder on the left."""
+    output = virtual_speakers_left_impulse(dsp)[:IMPULSE_FRAMES]
+    frequencies = np.fft.rfftfreq(IMPULSE_FRAMES, 1 / SAMPLE_RATE)
+    near, far = (20 * np.log10(np.abs(np.fft.rfft(output[:, channel])) + 1e-9) for channel in range(2))
+    band = (frequencies >= 5000) & (frequencies <= 10000)
+    difference = near[band] - far[band]
+    worst = np.argmin(difference)
+    if difference[worst] < 6:
+        raise Failure(f"at {frequencies[band][worst]:.0f} Hz the left ear is only {difference[worst]:.1f} dB "
+                      "above the right")
+    return [Plot("Alto-falantes virtuais: impulso só na esquerda",
+                 [Curve("esquerda", frequencies[1:], near[1:], near[1:]),
+                  Curve("direita", frequencies[1:], far[1:], far[1:])])]
+
+
+@case
+def virtual_speakers_mirror_the_output_of_mirrored_input(dsp):
+    frames = np.random.default_rng(4).integers(-32768, 32768, size=(SAMPLE_RATE, 2), dtype=np.int16)
+    with virtualizer_on(dsp, technique=VIRTUAL_SPEAKERS):
+        output = dsp.process(frames)
+    with virtualizer_on(dsp, technique=VIRTUAL_SPEAKERS):
+        mirrored = dsp.process(frames[:, ::-1])
+    differ = np.flatnonzero(np.any(mirrored[:, ::-1] != output, axis=1))
+    if len(differ):
+        first = differ[0]
+        raise Failure(f"{len(differ)} frames are not mirrored, first at frame {first}: "
+                      f"{output[first].tolist()} vs mirrored {mirrored[first].tolist()}")
+    return []
+
+
+# The mono peak may rise this far above 0 dB; beyond it the gain comes down and the loudness with it (#28).
+MONO_PEAK_LIMIT_DB = 3
+LOUDNESS_TOLERANCE_DB = 0.5
+
+
+def virtual_speakers_mono_response(dsp, points=1 << 16):
+    """Gain in dB of the mono path at points / 2 + 1 frequencies, from an impulse on both inputs."""
+    frames = np.zeros((IMPULSE_FRAMES, 2), dtype=np.int16)
+    frames[0] = 32767
+    with virtualizer_on(dsp, technique=VIRTUAL_SPEAKERS):
+        output = dsp.process(frames).astype(float)
+    if np.any(output[:, 0] != output[:, 1]):
+        raise Failure("a mono impulse comes out different on the two channels")
+    frequencies = np.fft.rfftfreq(points, 1 / SAMPLE_RATE)
+    return frequencies, 20 * np.log10(np.abs(np.fft.rfft(output[:, 0], points)) / 32767 + 1e-12)
+
+
+@case
+def virtual_speakers_keep_mono_loudness(dsp):
+    """Mono pink noise keeps its K-weighted loudness within 0.5 dB, unless the gain had to come down for the peak.
+
+    In that case the mono peak sits at the limit, no lower, so the gain dropped no further than the limit needs.
+    """
+    frames = 4 * SAMPLE_RATE
+    noise = pink_noise(frames)
+    mono = np.stack([noise, noise], axis=1).astype(np.int16)
+    with virtualizer_on(dsp, technique=VIRTUAL_SPEAKERS):
+        output = dsp.process(mono).astype(float)
+    measured = slice(SAMPLE_RATE // 10, None)
+    loudness_db = k_weighted_level_db(output[measured, 0]) - k_weighted_level_db(mono[measured, 0].astype(float))
+    _, response = virtual_speakers_mono_response(dsp)
+    peak_db = response.max()
+    at_limit = abs(peak_db - MONO_PEAK_LIMIT_DB) <= 0.05
+    if abs(loudness_db) > LOUDNESS_TOLERANCE_DB and not (at_limit and loudness_db < 0):
+        raise Failure(f"mono pink noise comes out {loudness_db:+.2f} dB K-weighted, with the mono peak at "
+                      f"{peak_db:+.2f} dB: expected within {LOUDNESS_TOLERANCE_DB} dB, or quieter only with the "
+                      f"peak at the +{MONO_PEAK_LIMIT_DB} dB limit")
+    print(f"     mono pink noise {loudness_db:+.2f} dB K-weighted, mono peak {peak_db:+.2f} dB")
+    return []
+
+
+@case
+def virtual_speakers_mono_peak_stays_below_the_limit_without_clipping(dsp):
+    """The mono gain peaks at +3 dB at most; a mono sine at that frequency, as loud as fits, stays a sine within 1%.
+
+    A sine at full scale itself would clip by the peak gain: the Chain saturates at 16 bits.
+    """
+    frequencies, response = virtual_speakers_mono_response(dsp)
+    peak = np.argmax(response)
+    errors = []
+    if response[peak] > MONO_PEAK_LIMIT_DB + 0.05:
+        errors.append(f"the mono gain peaks at {response[peak]:+.2f} dB at {frequencies[peak]:.0f} Hz, "
+                      f"above +{MONO_PEAK_LIMIT_DB} dB")
+    full_scale = 32767
+    frequency = round(frequencies[peak] * 2) / 2
+    amplitude = full_scale * 10 ** (-max(response[peak], 0) / 20)
+    with virtualizer_on(dsp, technique=VIRTUAL_SPEAKERS):
+        frames = SETTLE_PACKETS * FRAMES_PER_PACKET + MEASURE_FRAMES
+        phase = 2 * np.pi * frequency * np.arange(frames) / SAMPLE_RATE
+        tone = np.round(amplitude * np.sin(phase))
+        output = dsp.process(np.stack([tone, tone], axis=1))[-MEASURE_FRAMES:].astype(float)
+    basis = np.exp(-1j * phase[-MEASURE_FRAMES:])
+    for channel, name in enumerate(("left", "right")):
+        projection = 2 * output[:, channel] @ basis / MEASURE_FRAMES
+        shape_error = np.max(np.abs(output[:, channel] - np.real(projection * np.conj(basis)))) / full_scale
+        if shape_error > 0.01:
+            errors.append(f"{name} at {frequency:g} Hz, input {20 * np.log10(amplitude / full_scale):+.2f} dBFS: "
+                          f"off the sine by up to {100 * shape_error:.2f}% of full scale")
+    raise_errors(errors)
+    return []
+
+
+TECHNIQUE_PAIRS = ((CROSSFEED, VIRTUAL_SPEAKERS), (VIRTUAL_SPEAKERS, CROSSFEED))
+
+
+def stereo_tone(frames):
+    """A 250 Hz tone with a different level and phase on each channel, so both Techniques have something to do."""
+    return np.stack([cosine(250, frames), 0.5 * cosine(250, frames)[::-1]], axis=1).astype(np.int16)
+
+
+def run_switching_technique(dsp, start, target, frames):
+    """Process frames, switching from start to target at the middle packet."""
+    middle = len(frames) // 2
+    with virtualizer_on(dsp, technique=start):
+        output = dsp.process(frames[:middle])
+        dsp.technique.value = target
+        return np.concatenate([output, dsp.process(frames[middle:])]).astype(int), middle
+
+
+@case
+def switching_technique_never_jumps_more_than_the_signal(dsp):
+    """Switch Technique at the peak of a tone, both ways: the steps at the switch stay within the signal's own."""
+    errors = []
+    frames = stereo_tone(2 * SWITCH_SEGMENT)
+    for start, target in TECHNIQUE_PAIRS:
+        output, middle = run_switching_technique(dsp, start, target, frames)
+        steps = np.abs(np.diff(output, axis=0))
+        near_switch = np.zeros(len(steps), dtype=bool)
+        near_switch[middle - 1 : middle + FRAMES_PER_PACKET + 1] = True
+        signal_step = steps[~near_switch].max(axis=0)
+        switch_step = steps[near_switch].max(axis=0)
+        for channel, name in enumerate(("left", "right")):
+            if switch_step[channel] > signal_step[channel]:
+                errors.append(f"{start} to {target}, {name}: the switch steps by {switch_step[channel]}, "
+                              f"the signal itself by at most {signal_step[channel]}")
+    raise_errors(errors)
+    return []
+
+
+@case
+def switched_technique_matches_a_chain_that_started_on_it(dsp):
+    """After the transition packet, the output equals a run that began on the new Technique."""
+    errors = []
+    frames = stereo_tone(2 * SWITCH_SEGMENT)
+    for start, target in TECHNIQUE_PAIRS:
+        output, middle = run_switching_technique(dsp, start, target, frames)
+        with virtualizer_on(dsp, technique=target):
+            reference = dsp.process(frames).astype(int)
+        after = middle + FRAMES_PER_PACKET
+        worst = np.abs(output[after:] - reference[after:]).max()
+        if worst:
+            errors.append(f"{start} to {target}: after the transition the output differs from a run that "
+                          f"started on {target} by up to {worst} LSB")
+    raise_errors(errors)
+    return []
+
+
+@case
+def switching_technique_with_virtualization_off_changes_nothing(dsp):
+    """With the Virtualization off the output is the input, whatever the Technique does."""
+    frames = stereo_tone(2 * SWITCH_SEGMENT)
+    with virtualizer_on(dsp):
+        dsp.virt_enabled.value = False
+        dsp.settle()
+        output = dsp.process(frames[:SWITCH_SEGMENT])
+        dsp.technique.value = VIRTUAL_SPEAKERS
+        output = np.concatenate([output, dsp.process(frames[SWITCH_SEGMENT:])])
+    differ = np.flatnonzero(np.any(output != frames, axis=1))
+    if len(differ):
+        raise Failure(f"{len(differ)} frames changed with the Virtualization off, first at frame {differ[0]}")
+    return []
+
+
+@case
+def virtualization_turned_on_after_an_off_stretch_matches_one_that_never_stopped(dsp):
+    """Off for a stretch (even with the Technique changed meanwhile), then on: after the fade the output equals a run that stayed on."""
+    errors = []
+    segment = SWITCH_SEGMENT
+    frames = stereo_tone(3 * segment)
+    for start, target in TECHNIQUE_PAIRS:
+        for changed_while_off in (False, True):
+            technique_while_off = target if changed_while_off else start
+            with virtualizer_on(dsp, technique=start):
+                dsp.process(frames[:segment])
+                dsp.virt_enabled.value = False
+                dsp.process(frames[segment : 2 * segment])
+                dsp.technique.value = technique_while_off
+                dsp.process(frames[segment : 2 * segment])
+                dsp.virt_enabled.value = True
+                output = dsp.process(frames[2 * segment :]).astype(int)
+            with virtualizer_on(dsp, technique=start):
+                dsp.process(frames[:segment])
+                dsp.process(frames[segment : 2 * segment])
+                dsp.technique.value = technique_while_off
+                dsp.process(frames[segment : 2 * segment])
+                reference = dsp.process(frames[2 * segment :]).astype(int)
+            worst = np.abs(output[FRAMES_PER_PACKET:] - reference[FRAMES_PER_PACKET:]).max()
+            if worst:
+                errors.append(f"{start}, Technique {'changed' if changed_while_off else 'kept'} while off: after the "
+                              f"fade the output differs from a run that stayed on by up to {worst} LSB")
+    raise_errors(errors)
+    return []
+
+
 def save_plots(name, plots, directory):
     import matplotlib
 
@@ -557,6 +802,19 @@ def save_plots(name, plots, directory):
         figure.savefig(path, dpi=150, bbox_inches="tight")
         plt.close(figure)
         print(f"     plot: {os.path.relpath(path)}")
+
+
+@case
+def saved_technique_word_loads_as_the_technique_or_crossfeed(dsp):
+    """The flash word of the Technique: a saved value loads as itself, an erased or out-of-range one as Crossfeed."""
+    dsp.lib.Virtualizer_TechniqueFromSavedWord.argtypes = [ctypes.c_uint32]
+    dsp.lib.Virtualizer_TechniqueFromSavedWord.restype = ctypes.c_int
+    expected = {0: CROSSFEED, 1: VIRTUAL_SPEAKERS, 2: CROSSFEED, 0xFFFFFFFF: CROSSFEED}
+    wrong = [f"word {word:#x} loaded as {got}, expected {want}"
+             for word, want in expected.items()
+             if (got := dsp.lib.Virtualizer_TechniqueFromSavedWord(word)) != want]
+    if wrong:
+        raise Failure("; ".join(wrong))
 
 
 def main():

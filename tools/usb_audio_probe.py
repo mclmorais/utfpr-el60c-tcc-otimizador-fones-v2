@@ -9,12 +9,21 @@ Module and of the whole Chain, measured by the firmware with the DWT cycle
 counter, against the 1 ms packet budget. Run it after updating the HAL or the
 USB code: a build that compiles cleanly can still leave the speaker silent.
 
+With --worst-case, before the tone it writes over ST-LINK the heaviest state
+the DSP can be in: every Band away from 0 dB and both Modules on, with the
+Crossfeed as the Technique. Once the speaker plays it switches to the Virtual
+speakers, so the worst case holds a packet where both Techniques are computed
+and then the Virtual speakers alone.
+
 Needs the board on both USB cables (ST-LINK and USB OTG) and the Python
 packages sounddevice and numpy.
 
-Usage: tools/usb_audio_probe.py [firmware.elf]   # default build/Debug/horoscope.elf
+Usage:
+  tools/usb_audio_probe.py [firmware.elf]                # default build/Debug/horoscope.elf
+  tools/usb_audio_probe.py --worst-case [firmware.elf]
 """
 
+import argparse
 import glob
 import os
 import re
@@ -27,7 +36,7 @@ from lcd_capture import bundle_path, programmer_cli
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEVICE_NAME = "STM32 AUDIO"
-TONE_SECONDS = 10
+TONE_SECONDS = 16
 # The host takes a few seconds to enumerate the board after a reset, and to start the stream after play().
 ENUMERATION_SECONDS = 8
 STREAM_START_SECONDS = 6
@@ -42,6 +51,12 @@ MODULES = ["Virtualizacao", "Equalizador"]
 CPU_HZ = 216_000_000
 PACKET_BUDGET_CYCLES = CPU_HZ // 1000
 STATES = ["OFF", "INITIALIZED", "STARTED", "STOPPED", "ERROR"]
+BAND_COUNT = 31
+# eqGains is in tenths of a dB; alternating signs keep the boosted tone far from full scale.
+WORST_CASE_GAIN = 60
+# VIRTUALIZER_VIRTUAL_SPEAKERS in Application/DSP/Inc/virtualizer.h.
+VIRTUAL_SPEAKERS = 1
+CROSSFEED = 0
 
 
 def symbols(elf):
@@ -76,6 +91,24 @@ def read_word(addresses, symbol, offset=0):
     return int(re.search(r"^0x[0-9A-F]+ : ([0-9A-F]{8})", out, re.MULTILINE).group(1), 16)
 
 
+def write(addresses, symbol, offset, bits, value):
+    """Write a value of the given width into a running firmware's variable."""
+    value &= (1 << bits) - 1
+    programmer("mode=HOTPLUG", f"-w{bits}", hex(addresses[symbol][0] + offset), hex(value))
+
+
+def apply_worst_case(addresses):
+    for band in range(BAND_COUNT):
+        write(addresses, "eqGains", 2 * band, 16, WORST_CASE_GAIN if band % 2 else -WORST_CASE_GAIN)
+    write(addresses, "eqEnabled", 0, 8, 1)
+    write_technique(addresses, CROSSFEED)
+    write(addresses, "virtEnabled", 0, 8, 1)
+
+
+def write_technique(addresses, technique):
+    write(addresses, "virtTechnique", 0, 8 * addresses["virtTechnique"][1], technique)
+
+
 def cycles_line(name, cycles):
     return (f"{name}: {cycles} cycles per packet "
             f"({100 * cycles / PACKET_BUDGET_CYCLES:.1f}% of the {PACKET_BUDGET_CYCLES}-cycle 1 ms budget)")
@@ -93,7 +126,11 @@ def play_tone(sd, np):
 
 
 def main():
-    elf = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "build", "Debug", "horoscope.elf")
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("elf", nargs="?", default=os.path.join(ROOT, "build", "Debug", "horoscope.elf"))
+    parser.add_argument("--worst-case", action="store_true", help="measure with the heaviest DSP state")
+    args = parser.parse_args()
+    elf = args.elf
     addresses = symbols(elf)
     module_count = addresses[MODULE_CYCLES][1] // 4
     if module_count != len(MODULES):
@@ -106,10 +143,14 @@ def main():
     import sounddevice as sd
 
     idle = (read_state(addresses, SESSION), read_state(addresses, SPEAKER_NODE))
+    if args.worst_case:
+        apply_worst_case(addresses)
     player = threading.Thread(target=play_tone, args=(sd, np))
     player.start()
     time.sleep(STREAM_START_SECONDS)
     playing = (read_state(addresses, SESSION), read_state(addresses, SPEAKER_NODE))
+    if args.worst_case:
+        write_technique(addresses, VIRTUAL_SPEAKERS)
     player.join()
     module_cycles = [read_word(addresses, MODULE_CYCLES, 4 * i) for i in range(len(MODULES))]
     chain_cycles = read_word(addresses, CHAIN_CYCLES)

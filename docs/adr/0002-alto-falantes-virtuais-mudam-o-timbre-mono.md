@@ -1,0 +1,3 @@
+# Os Alto-falantes virtuais mudam o timbre de um sinal mono
+
+Com o Crossfeed, um sinal mono sai igual, bit a bit, com a Virtualização ligada ou desligada. Com os Alto-falantes virtuais, ele só sai com o mesmo volume, como o ADR 0001 exige, e o timbre muda. O filtro da soma dos canais guarda a forma da resposta medida da cabeça, porque é ela que tira de dentro da cabeça um som centralizado, que é o objetivo da Técnica. Rejeitamos filtrar só a diferença entre os canais, que manteria o mono intacto e custaria metade dos ciclos: um som no centro continuaria dentro da cabeça. O volume é comparado pelo ruído rosa mono com ponderação K (ITU-R BS.1770), porque a resposta da cabeça não é plana e igualar só os graves deixaria os agudos mais altos.

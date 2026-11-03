@@ -212,7 +212,24 @@ void Touchscreen_ButtonHandler(void)
       return;
     }
 
-    for(uint32_t i = 0; i < CROSSFEED_PRESET_COUNT; i++)
+    for(uint32_t i = 0; i < VIRTUALIZER_TECHNIQUE_COUNT; i++)
+    {
+      if(IsInside(&techniqueButtons[i], touchXPosition, touchYPosition))
+      {
+        if(!isTapLatched)
+        {
+          isTapLatched = true;
+          virtTechnique = (VirtualizerTechnique)i;
+          LCD_UpdateState();
+          FlashPersistence_WriteSettings(CurrentDisplay());
+        }
+
+        return;
+      }
+    }
+
+    // The Preset buttons are hidden, and must not be hit, while the Technique is not Crossfeed.
+    for(uint32_t i = 0; virtTechnique == VIRTUALIZER_CROSSFEED && i < CROSSFEED_PRESET_COUNT; i++)
     {
       if(IsInside(&presetButtons[i], touchXPosition, touchYPosition))
       {
