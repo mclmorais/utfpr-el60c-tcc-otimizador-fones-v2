@@ -797,6 +797,19 @@ def save_plots(name, plots, directory):
         print(f"     plot: {os.path.relpath(path)}")
 
 
+@case
+def saved_technique_word_loads_as_the_technique_or_crossfeed(dsp):
+    """The flash word of the Technique: a saved value loads as itself, an erased or out-of-range one as Crossfeed."""
+    dsp.lib.Virtualizer_TechniqueFromSavedWord.argtypes = [ctypes.c_uint32]
+    dsp.lib.Virtualizer_TechniqueFromSavedWord.restype = ctypes.c_int
+    expected = {0: CROSSFEED, 1: VIRTUAL_SPEAKERS, 2: CROSSFEED, 0xFFFFFFFF: CROSSFEED}
+    wrong = [f"word {word:#x} loaded as {got}, expected {want}"
+             for word, want in expected.items()
+             if (got := dsp.lib.Virtualizer_TechniqueFromSavedWord(word)) != want]
+    if wrong:
+        raise Failure("; ".join(wrong))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--plot", metavar="DIR", help="save a PNG of each measured response in DIR")

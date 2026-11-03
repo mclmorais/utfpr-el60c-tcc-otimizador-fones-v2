@@ -15,6 +15,11 @@ volatile bool virtEnabled = false;
 volatile VirtualizerTechnique virtTechnique = VIRTUALIZER_CROSSFEED;
 volatile uint8_t crossfeedPreset = 0;
 
+VirtualizerTechnique Virtualizer_TechniqueFromSavedWord(uint32_t word)
+{
+  return word < VIRTUALIZER_TECHNIQUE_COUNT ? (VirtualizerTechnique)word : VIRTUALIZER_CROSSFEED;
+}
+
 // bs2b feeds each ear the opposite channel through a first-order lowpass of gain G
 // and its own channel through a first-order high shelf. Its shelf, given the
 // lowpass's corner and gain, is exactly 1 - G * lowpass; bs2b's own choice of

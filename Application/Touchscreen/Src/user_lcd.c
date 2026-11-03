@@ -54,6 +54,9 @@
 #define TRAIL_SEGMENT         8
 #define TRAIL_LENGTH          24
 #define TRAIL_SEGMENTS        (2 * (WVGA_RES_X + WVGA_RES_Y) / TRAIL_SEGMENT)
+
+// The Technique buttons span the same width as the Preset grid; ALTO-FALANTES needs 204 px of Font24.
+#define TECHNIQUE_BUTTON_Y 95
 // Font24 leaves its top two rows blank, so the labels' ink starts just under the trail.
 #define EQ_LABEL_Y 2
 
@@ -96,6 +99,9 @@ RectangleButton moduleSwitchButton = {
   .isPressed = false,
   .isActive = false,
 };
+
+// One per Technique, laid out and labelled by LCD_DisplayVirtualizerPage; exactly the selected one is active.
+RectangleButton techniqueButtons[VIRTUALIZER_TECHNIQUE_COUNT];
 
 // One per Preset, laid out and labelled by LCD_DisplayVirtualizerPage; exactly the selected one is active.
 RectangleButton presetButtons[CROSSFEED_PRESET_COUNT];
@@ -298,7 +304,30 @@ static void LCD_DisplayVirtualizerPage(void)
   BSP_LCD_SetBackColor(theme->background);
   BSP_LCD_SetTextColor(theme->foreground);
   BSP_LCD_DisplayStringAt(250, 60, (uint8_t*)"Virtualizacao", LEFT_MODE);
-  BSP_LCD_DisplayStringAt(250, 150, (uint8_t*)"Tecnica: Crossfeed", LEFT_MODE);
+  static const char* const techniqueNames[VIRTUALIZER_TECHNIQUE_COUNT] = {"CROSSFEED", "ALTO-FALANTES"};
+  for(uint32_t i = 0; i < VIRTUALIZER_TECHNIQUE_COUNT; i++)
+  {
+    techniqueButtons[i].x = 250 + (i % PRESET_BUTTON_COLUMNS) * (PRESET_BUTTON_WIDTH + PRESET_BUTTON_GAP);
+    techniqueButtons[i].y = TECHNIQUE_BUTTON_Y;
+    techniqueButtons[i].width = PRESET_BUTTON_WIDTH;
+    techniqueButtons[i].height = PRESET_BUTTON_HEIGHT;
+    techniqueButtons[i].text = (char*)techniqueNames[i];
+    techniqueButtons[i].isActive = i == virtTechnique;
+    LCD_UpdateRectangleButton(&techniqueButtons[i]);
+  }
+
+  BSP_LCD_SetBackColor(theme->background);
+  BSP_LCD_SetTextColor(theme->foreground);
+  if(virtTechnique == VIRTUALIZER_VIRTUAL_SPEAKERS)
+  {
+    BSP_LCD_DisplayStringAt(250, 190, (uint8_t*)"2 alto-falantes a 30 graus", LEFT_MODE);
+    BSP_LCD_SetFont(&Font16);
+    BSP_LCD_DisplayStringAt(250, 390, (uint8_t*)"Cada ouvido recebe os dois alto-falantes,", LEFT_MODE);
+    BSP_LCD_DisplayStringAt(250, 410, (uint8_t*)"com o atraso e a sombra da cabeca.", LEFT_MODE);
+    BSP_LCD_SetFont(&Font24);
+    return;
+  }
+
   BSP_LCD_DisplayStringAt(250, 190, (uint8_t*)"Preset:", LEFT_MODE);
   for(uint32_t i = 0; i < CROSSFEED_PRESET_COUNT; i++)
   {
