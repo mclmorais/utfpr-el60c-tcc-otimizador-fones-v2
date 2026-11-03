@@ -2,7 +2,9 @@
 """Choose the Virtual speakers filter size by measured error.
 
 Each candidate size is cut from the SOFA responses and compared with the whole
-filter, the same responses uncut. The comparison is at the two ears: the
+filter: the uncut, unwindowed shuffler responses of the SOFA file, scaled by
+the same loudness normalization as the candidates, so a difference in gain
+does not count as magnitude error. The comparison is at the two ears: the
 speaker's response at the near ear (ipsilateral) and at the far ear
 (contralateral), rebuilt from the sum and difference filters. The size passes
 when both of these hold:
@@ -104,7 +106,7 @@ def main():
     args = parser.parse_args()
 
     hrirs = vs.read_hrirs(args.sofa)
-    whole = ears(vs.design(hrirs, max(SIZES)))
+    whole = ears(vs.normalize(hrirs.ipsilateral + hrirs.contralateral, hrirs.ipsilateral - hrirs.contralateral))
     errors = [measure(hrirs, taps, whole) for taps in SIZES]
 
     print(f"{'taps':>5} {'smoothed 200 Hz-16 kHz':>23} {'unsmoothed':>13} {'interaural delay':>17}")
