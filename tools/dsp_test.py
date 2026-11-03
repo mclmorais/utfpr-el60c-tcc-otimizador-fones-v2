@@ -705,6 +705,77 @@ def virtual_speakers_mono_peak_stays_below_the_limit_without_clipping(dsp):
     return []
 
 
+TECHNIQUE_PAIRS = ((CROSSFEED, VIRTUAL_SPEAKERS), (VIRTUAL_SPEAKERS, CROSSFEED))
+
+
+def stereo_tone(frames):
+    """A 250 Hz tone with a different level and phase on each channel, so both Techniques have something to do."""
+    return np.stack([cosine(250, frames), 0.5 * cosine(250, frames)[::-1]], axis=1).astype(np.int16)
+
+
+def run_switching_technique(dsp, start, target, frames):
+    """Process frames, switching from start to target at the middle packet."""
+    middle = len(frames) // 2
+    with virtualizer_on(dsp, technique=start):
+        output = dsp.process(frames[:middle])
+        dsp.technique.value = target
+        return np.concatenate([output, dsp.process(frames[middle:])]).astype(int), middle
+
+
+@case
+def switching_technique_never_jumps_more_than_the_signal(dsp):
+    """Switch Technique at the peak of a tone, both ways: the steps at the switch stay within the signal's own."""
+    errors = []
+    frames = stereo_tone(2 * SWITCH_SEGMENT)
+    for start, target in TECHNIQUE_PAIRS:
+        output, middle = run_switching_technique(dsp, start, target, frames)
+        steps = np.abs(np.diff(output, axis=0))
+        near_switch = np.zeros(len(steps), dtype=bool)
+        near_switch[middle - 1 : middle + FRAMES_PER_PACKET + 1] = True
+        signal_step = steps[~near_switch].max(axis=0)
+        switch_step = steps[near_switch].max(axis=0)
+        for channel, name in enumerate(("left", "right")):
+            if switch_step[channel] > signal_step[channel]:
+                errors.append(f"{start} to {target}, {name}: the switch steps by {switch_step[channel]}, "
+                              f"the signal itself by at most {signal_step[channel]}")
+    raise_errors(errors)
+    return []
+
+
+@case
+def switched_technique_matches_a_chain_that_started_on_it(dsp):
+    """After the transition packet, the output equals a run that began on the new Technique."""
+    errors = []
+    frames = stereo_tone(2 * SWITCH_SEGMENT)
+    for start, target in TECHNIQUE_PAIRS:
+        output, middle = run_switching_technique(dsp, start, target, frames)
+        with virtualizer_on(dsp, technique=target):
+            reference = dsp.process(frames).astype(int)
+        after = middle + FRAMES_PER_PACKET
+        worst = np.abs(output[after:] - reference[after:]).max()
+        if worst:
+            errors.append(f"{start} to {target}: after the transition the output differs from a run that "
+                          f"started on {target} by up to {worst} LSB")
+    raise_errors(errors)
+    return []
+
+
+@case
+def switching_technique_with_virtualization_off_changes_nothing(dsp):
+    """With the Virtualization off the output is the input, whatever the Technique does."""
+    frames = stereo_tone(2 * SWITCH_SEGMENT)
+    with virtualizer_on(dsp):
+        dsp.virt_enabled.value = False
+        dsp.settle()
+        output = dsp.process(frames[:SWITCH_SEGMENT])
+        dsp.technique.value = VIRTUAL_SPEAKERS
+        output = np.concatenate([output, dsp.process(frames[SWITCH_SEGMENT:])])
+    differ = np.flatnonzero(np.any(output != frames, axis=1))
+    if len(differ):
+        raise Failure(f"{len(differ)} frames changed with the Virtualization off, first at frame {differ[0]}")
+    return []
+
+
 def save_plots(name, plots, directory):
     import matplotlib
 
