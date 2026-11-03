@@ -43,9 +43,9 @@ Técnica de Virtualização que leva a cada ouvido uma cópia atrasada e abafada
 _Evitar_: mistura de canais, cross-talk
 
 **Preset** (`preset`):
-Um ajuste de Crossfeed publicado e com nome (Padrão, Chu Moy, Jan Meier), definido pela frequência de corte e pelo nível do canal oposto.
+Um ajuste de Crossfeed com nome, definido pela frequência de corte e pelo nível do canal oposto. Três são publicados (Padrão, Chu Moy, Jan Meier) e um é deste projeto (Forte).
 _Evitar_: perfil, modo, nível
 
 **Alto-falantes virtuais** (`virtual speakers`):
-Técnica de Virtualização, planejada para depois do Crossfeed, que simula dois alto-falantes à frente a partir de respostas medidas da cabeça humana (HRTF).
+Técnica de Virtualização que simula um par de alto-falantes à frente do ouvinte, a 30° de cada lado, num ambiente sem eco, a partir de respostas medidas de uma cabeça (HRTF). Como nada mede a posição da cabeça, os alto-falantes giram junto com ela.
 _Evitar_: HRTF (nome da medida, não da técnica), surround
