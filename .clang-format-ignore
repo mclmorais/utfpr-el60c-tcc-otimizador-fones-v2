@@ -4,3 +4,5 @@ Utilities/**
 Application/Touchscreen/Inc/*argb8888.h
 Application/Touchscreen/Inc/stlogo.h
 Application/Touchscreen/Inc/utfprlogo.h
+# Gerado por tools/virtual_speakers.py.
+Application/DSP/Inc/virtual_speakers_filters.h

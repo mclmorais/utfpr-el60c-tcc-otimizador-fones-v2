@@ -219,6 +219,12 @@ Sem argumento, ele usa o `build/Debug/horoscope.elf`. A linha `idle` mostra o es
 
 As linhas abaixo de `dsp worst case` mostram quanto do orçamento de 1 ms por pacote o DSP consome: uma linha por Módulo, na ordem da Cadeia, e uma linha para a Cadeia inteira. O firmware mede com o contador de ciclos DWT do Cortex-M7 cada Módulo e cada chamada de `AudioUserDsp_Process`, e guarda o maior valor desde a inicialização nas variáveis globais `moduleWorstCaseCycles` (uma posição por Módulo) e `chainWorstCaseCycles`. A Cadeia inclui também a conversão do pacote para `float` e a saturação de volta para 16 bits. A sonda lê essas variáveis pelo ST-LINK, pelo símbolo do ELF, e mostra os ciclos e a porcentagem do orçamento de 216.000 ciclos (1 ms a 216 MHz). Os nomes dos Módulos ficam na lista `MODULES` da sonda; se a Cadeia do firmware tiver outro tamanho, a sonda para e pede que a lista seja atualizada. O valor inclui as interrupções que preemptam o DSP e a recompilação de uma Banda por pacote depois de uma mudança de ganho. A medição só tem sentido depois de o tom tocar por alguns segundos.
 
+Com `--worst-case`, antes do tom a sonda escreve pelo ST-LINK o estado mais pesado do DSP: as 31 Bandas em ±6 dB, os dois Módulos ligados e os Alto-falantes virtuais como Técnica. A flash não muda; o próximo reset volta aos ajustes salvos.
+
+```bash
+tools/usb_audio_probe.py --worst-case
+```
+
 ### Testar o DSP no PC
 
 O script `tools/dsp_test.py` confere a resposta do Equalizador e da Virtualização sem a placa. Ele compila as fontes de `Application/DSP/` como biblioteca compartilhada com o compilador C do pacote `ziglang`, passa sinais de teste pela mesma função que o callback USB chama, pacote a pacote, e mede a saída com o numpy. Os ganhos, as chaves e o Preset são ajustados pelos mesmos `eqGains`, `eqEnabled`, `virtEnabled` e `crossfeedPreset` que a tela altera. O DSP lê o contador de ciclos DWT por `cycle_counter.h`, que o firmware implementa em `Application/User/Src/cycle_counter.c`. No PC, o substituto em `tools/dsp_pc/` sempre lê zero. Antes de medir, os testes reinicializam o DSP e descartam um segundo de pacotes.
@@ -261,6 +267,34 @@ Os casos da Virtualização leem a tabela `crossfeedPresets` do próprio DSP e r
 - Um seno mono em fundo de escala, na frequência em que o ganho mono é maior, sai a até 1 dB do nível de entrada e não se afasta da senoide mais do que 1% do fundo de escala.
 - Trocar de Preset entre dois pacotes, com ruído tocando, leva a saída à mesma de uma execução que começou no Preset novo, a até 2 LSB, um quarto de segundo depois.
 - Desligar e religar a Virtualização no pico de um tom de 250 Hz só na esquerda não produz um salto maior que o do próprio sinal. Depois de religada, a saída é igual à de uma execução que nunca desligou.
+
+Os casos dos Alto-falantes virtuais escolhem a Técnica por `virtTechnique` e não leem os coeficientes:
+
+- Um impulso só na esquerda chega à direita com o atraso da fórmula de Woodworth para uma cabeça de raio 8,75 cm a 30° (12,5 amostras), a ± 2 amostras, medido pela correlação cruzada.
+- De 5 a 10 kHz, o mesmo impulso sai pelo menos 6 dB mais alto na esquerda que na direita.
+- Ruído estéreo com os canais trocados sai com os canais trocados, bit a bit.
+- Ruído rosa mono sai com o mesmo volume com ponderação K (ITU-R BS.1770) a ± 0,5 dB, a menos que o ganho tenha baixado para o pico mono ficar em +3 dB; nesse caso o pico fica exatamente no limite.
+- O ganho mono fica em no máximo +3 dB, e um seno mono na frequência do pico, no maior nível que cabe sem saturar, não se afasta da senoide mais do que 1% do fundo de escala.
+
+### Gerar os Filtros dos Alto-falantes Virtuais
+
+O script `tools/virtual_speakers.py` gera `Application/DSP/Inc/virtual_speakers_filters.h` a partir do arquivo SOFA da cabeça KEMAR (D2) do SADIE II, a 48 kHz. Ele pega o alto-falante a +30° de azimute e 0° de elevação, espelha para -30°, monta os filtros de soma e de diferença do embaralhador, corta e janela para 128 taps e ajusta o ganho para o ruído rosa mono manter o volume com ponderação K. As medidas do SADIE II já vêm com a compensação de campo difuso, e o script as usa como vêm. A compilação não roda o script; o cabeçalho fica no repositório. O mesmo arquivo SOFA sempre gera o mesmo cabeçalho.
+
+Baixe o arquivo fora do repositório. O cabeçalho de hoje veio deste, com SHA-256 `bb5980288fc5c990c821e02c5ddfa274759079b723973cd6ca47ac577243aa0c`:
+
+```bash
+curl -LO https://sofacoustics.org/data/database/sadie/D2_48K_24bit_256tap_FIR_SOFA.sofa
+```
+
+```bash
+pip install h5py==3.16.0 numpy==2.5.4
+```
+
+```bash
+tools/virtual_speakers.py caminho/D2_48K_24bit_256tap_FIR_SOFA.sofa
+```
+
+`--taps` muda o tamanho do filtro e `--output`, o arquivo gerado.
 
 ### Formatar e Analisar o Código
 
