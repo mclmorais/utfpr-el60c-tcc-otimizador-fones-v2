@@ -7,6 +7,7 @@
 
 typedef enum VirtualizerTechnique {
   VIRTUALIZER_CROSSFEED,
+  VIRTUALIZER_VIRTUAL_SPEAKERS,
 } VirtualizerTechnique;
 
 // A Crossfeed setting (the first three are published, the last is this project's own): the opposite channel is lowpassed at cutoffHz
